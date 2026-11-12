@@ -1,0 +1,344 @@
+"use client";
+
+import React, { useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { 
+  ArrowLeft, 
+  Download, 
+  Share2, 
+  Star, 
+  Trash2, 
+  FolderInput, 
+  Edit3, 
+  Sparkles, 
+  Calendar, 
+  Clock, 
+  HardDrive, 
+  ShieldCheck,
+  Building2,
+  FileCheck2,
+  Check
+} from "lucide-react";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { DocumentViewer } from "@/components/documents/DocumentViewer";
+import { ShareModal } from "@/components/sharing/ShareModal";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { mockDocuments } from "@/lib/mock-data";
+import { formatBytes, formatDate, formatDateTime, getFileTypeBadge } from "@/lib/utils";
+
+export default function DocumentDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const docId = params.id as string;
+
+  const doc = mockDocuments.find((d) => d.id === docId) || mockDocuments[0];
+
+  const [isFavorite, setIsFavorite] = useState(doc.is_favorite);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [notes, setNotes] = useState(doc.notes || "");
+  const [activeTab, setActiveTab] = useState<"info" | "ocr" | "history">("info");
+
+  const badge = getFileTypeBadge(doc.mime_type, doc.file_extension);
+
+  const handleDownload = () => {
+    alert(`Iniciando download seguro com URL assinada para: ${doc.file_name}`);
+  };
+
+  const handleDelete = () => {
+    if (confirm("Deseja enviar este documento para a lixeira?")) {
+      router.push("/documentos");
+    }
+  };
+
+  return (
+    <AppLayout>
+      <div className="space-y-4">
+        {/* Barra Superior de Navegação e Ações Rápidas */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/80">
+          <div className="flex items-center space-x-3">
+            <Link
+              href="/documentos"
+              className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              title="Voltar para a lista"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <div>
+              <div className="flex items-center space-x-2">
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${badge.bg}`}>
+                  {badge.label}
+                </span>
+                <h1 className="text-base sm:text-lg font-bold text-foreground line-clamp-1">
+                  {doc.title}
+                </h1>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {doc.document_number ? `Ref: ${doc.document_number}` : "Documento Digitalizado"} • Enviado em {formatDateTime(doc.created_at)}
+              </p>
+            </div>
+          </div>
+
+          {/* Botões de Ação */}
+          <div className="flex items-center space-x-1.5 flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsFavorite(!isFavorite)}
+              className="h-8 text-xs flex items-center space-x-1"
+            >
+              <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-amber-400 text-amber-500" : ""}`} />
+              <span className="hidden sm:inline">{isFavorite ? "Favorito" : "Favoritar"}</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsShareOpen(true)}
+              className="h-8 text-xs flex items-center space-x-1"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              <span>Compartilhar</span>
+            </Button>
+
+            <Button
+              size="sm"
+              onClick={handleDownload}
+              className="h-8 text-xs bg-[#0F4C5C] hover:bg-[#09333e] text-white flex items-center space-x-1"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>Baixar</span>
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDelete}
+              className="h-8 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-2"
+              title="Excluir documento"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Layout Dividido: Visualizador (Esquerda) e Painel Lateral (Direita) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Visualizador In-Page (8 colunas) */}
+          <div className="lg:col-span-8 space-y-4">
+            <DocumentViewer
+              fileName={doc.file_name}
+              mimeType={doc.mime_type}
+              ocrText={doc.ocr_text}
+            />
+
+            {/* Status OCR em Destaque */}
+            <div className="p-3 bg-muted/30 border border-border/80 rounded-xl flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="h-4 w-4 text-[#0F4C5C]" />
+                <span className="font-semibold text-foreground">Status do Reconhecimento (OCR):</span>
+                {doc.ocr_status === "completed" && (
+                  <Badge variant="emerald" className="text-[10px]">Indexado com Sucesso</Badge>
+                )}
+                {doc.ocr_status === "processing" && (
+                  <Badge variant="amber" className="text-[10px]">Processando texto...</Badge>
+                )}
+              </div>
+              <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                Pesquisável em consultas globais
+              </span>
+            </div>
+          </div>
+
+          {/* Painel Lateral com Informações e Metadados (4 colunas) */}
+          <div className="lg:col-span-4 bg-card border border-border/80 rounded-xl overflow-hidden shadow-soft">
+            {/* Abas */}
+            <div className="flex border-b border-border text-xs font-medium">
+              <button
+                onClick={() => setActiveTab("info")}
+                className={`flex-1 py-3 text-center transition-colors border-b-2 ${
+                  activeTab === "info"
+                    ? "border-[#0F4C5C] text-[#0F4C5C] font-semibold bg-muted/20"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Informações
+              </button>
+              <button
+                onClick={() => setActiveTab("ocr")}
+                className={`flex-1 py-3 text-center transition-colors border-b-2 ${
+                  activeTab === "ocr"
+                    ? "border-[#0F4C5C] text-[#0F4C5C] font-semibold bg-muted/20"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Texto Extraído (OCR)
+              </button>
+              <button
+                onClick={() => setActiveTab("history")}
+                className={`flex-1 py-3 text-center transition-colors border-b-2 ${
+                  activeTab === "history"
+                    ? "border-[#0F4C5C] text-[#0F4C5C] font-semibold bg-muted/20"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Histórico
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 text-xs">
+              {activeTab === "info" && (
+                <>
+                  {/* Metadados Primários */}
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-[11px] text-muted-foreground block">Tipo de Documento</span>
+                      <span className="font-semibold text-foreground text-sm">
+                        {doc.type?.name || "Ofício / Documento Oficial"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[11px] text-muted-foreground block">Número de Registro</span>
+                      <span className="font-mono text-foreground font-medium">
+                        {doc.document_number || "Não informado"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-[11px] text-muted-foreground block">Data do Documento</span>
+                        <span className="text-foreground">
+                          {formatDate(doc.document_date)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[11px] text-muted-foreground block">Tamanho</span>
+                        <span className="font-mono text-foreground">
+                          {formatBytes(doc.file_size_bytes)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-[11px] text-muted-foreground block">Origem / Órgão Expedidor</span>
+                      <span className="text-foreground flex items-center space-x-1.5 mt-0.5">
+                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{doc.origin_sector || "Gabinete Geral"}</span>
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[11px] text-muted-foreground block">Pasta de Arquivamento</span>
+                      <span className="text-foreground flex items-center space-x-1.5 mt-0.5">
+                        <FolderInput className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span>{doc.folder?.name || "Gabinete do Secretário"}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Tags */}
+                  <div className="pt-3 border-t border-border/80">
+                    <span className="text-[11px] text-muted-foreground block mb-1.5">Tags Associadas</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {doc.tags?.map((t) => (
+                        <span
+                          key={t.id}
+                          className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-muted text-foreground border border-border"
+                        >
+                          #{t.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Observações com Edição Rápida */}
+                  <div className="pt-3 border-t border-border/80">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[11px] text-muted-foreground font-medium">Observações Internas</span>
+                      <button
+                        onClick={() => setIsEditingNotes(!isEditingNotes)}
+                        className="text-[11px] text-[#0F4C5C] hover:underline flex items-center space-x-1"
+                      >
+                        <Edit3 className="h-3 w-3" />
+                        <span>{isEditingNotes ? "Cancelar" : "Editar"}</span>
+                      </button>
+                    </div>
+
+                    {isEditingNotes ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          className="w-full h-20 text-xs p-2 rounded-lg border border-input bg-background"
+                          placeholder="Adicione anotações sobre tramitação ou auditoria..."
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => setIsEditingNotes(false)}
+                          className="h-7 text-xs bg-[#0F4C5C] text-white"
+                        >
+                          Salvar Nota
+                        </Button>
+                      </div>
+                    ) : (
+                      <p className="text-muted-foreground leading-relaxed bg-muted/30 p-2.5 rounded-lg border border-border/60">
+                        {notes || "Nenhuma observação registrada para este documento."}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {activeTab === "ocr" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-foreground">Conteúdo Textual Indexado</span>
+                    <Badge variant="outline" className="text-[10px]">Tesseract OCR (pt)</Badge>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto p-3 bg-muted/40 rounded-lg border border-border/80 text-[11px] font-mono leading-relaxed whitespace-pre-wrap text-foreground">
+                    {doc.ocr_text || "Nenhum texto pôde ser extraído."}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "history" && (
+                <div className="space-y-3">
+                  <span className="text-xs font-semibold text-foreground">Trilha de Eventos</span>
+                  <div className="space-y-2 border-l-2 border-border pl-3 ml-1">
+                    <div className="relative pb-2">
+                      <div className="absolute -left-[17px] top-1 h-2 w-2 rounded-full bg-[#0F4C5C]" />
+                      <p className="font-semibold text-foreground">Envio e Guarda Segura</p>
+                      <p className="text-[10px] text-muted-foreground">{formatDateTime(doc.created_at)}</p>
+                    </div>
+
+                    <div className="relative pb-2">
+                      <div className="absolute -left-[17px] top-1 h-2 w-2 rounded-full bg-emerald-500" />
+                      <p className="font-semibold text-foreground">Extração OCR Concluída</p>
+                      <p className="text-[10px] text-muted-foreground">Indexado no motor PostgreSQL FTS</p>
+                    </div>
+
+                    <div className="relative">
+                      <div className="absolute -left-[17px] top-1 h-2 w-2 rounded-full bg-blue-500" />
+                      <p className="font-semibold text-foreground">Visualização Registrada</p>
+                      <p className="text-[10px] text-muted-foreground">Consulta por gestor autorizado</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Modal de Compartilhamento */}
+        <ShareModal
+          isOpen={isShareOpen}
+          onClose={() => setIsShareOpen(false)}
+          document={doc}
+        />
+      </div>
+    </AppLayout>
+  );
+}

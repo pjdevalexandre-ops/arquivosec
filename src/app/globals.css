@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 220 20% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 12%;
+
+    /* Azul-petróleo #0F4C5C -> HSL: 192, 72%, 21% */
+    --primary: 192 72% 21%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 20% 95%;
+    --secondary-foreground: 220 20% 15%;
+
+    --muted: 210 20% 94%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 192 40% 94%;
+    --accent-foreground: 192 72% 21%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214 20% 90%;
+    --input: 214 20% 90%;
+    --ring: 192 72% 21%;
+
+    --radius: 0.625rem; /* 10px */
+  }
+
+  .dark {
+    --background: 222 24% 10%;
+    --foreground: 210 20% 96%;
+
+    --card: 222 22% 13%;
+    --card-foreground: 210 20% 96%;
+
+    --popover: 222 22% 13%;
+    --popover-foreground: 210 20% 96%;
+
+    /* Azul-petróleo ajustado para dark mode: #1a6d82 -> HSL: 192, 66%, 31% */
+    --primary: 192 66% 36%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 217 19% 19%;
+    --secondary-foreground: 210 20% 96%;
+
+    --muted: 217 19% 19%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 192 50% 20%;
+    --accent-foreground: 192 66% 75%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 19% 22%;
+    --input: 217 19% 22%;
+    --ring: 192 66% 36%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased selection:bg-brand-subtle selection:text-brand;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(15, 76, 92, 0.15);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 76, 92, 0.3);
+}
+
+/* Focus rings with high accessibility */
+*:focus-visible {
+  outline: 2px solid #0F4C5C;
+  outline-offset: 2px;
+}
