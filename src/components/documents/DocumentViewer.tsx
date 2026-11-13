@@ -57,81 +57,73 @@ export function DocumentViewer({
   return (
     <div
       ref={containerRef}
-      className={`flex flex-col bg-slate-900 rounded-xl overflow-hidden shadow-elevated border border-border relative select-none ${
-        isFullscreen ? "h-screen w-screen fixed inset-0 z-50 rounded-none" : "h-[620px]"
+      className={`flex flex-col bg-slate-900 rounded-xl overflow-hidden shadow-elevated border border-border relative select-none max-w-full ${
+        isFullscreen
+          ? "h-[100dvh] w-[100vw] fixed inset-0 z-50 rounded-none pt-safe pb-safe"
+          : "h-[50dvh] sm:h-[620px]"
       } ${className || ""}`}
     >
-      {/* Barra de Controles Superiores */}
-      <div className="h-12 bg-slate-800/90 backdrop-blur-md px-4 flex items-center justify-between text-slate-200 border-b border-slate-700/80">
-        <div className="flex items-center space-x-2 truncate max-w-sm">
+      {/* Barra de Controles Superiores com Safe Area */}
+      <div className="h-12 sm:h-12 bg-slate-800/90 backdrop-blur-md px-3 sm:px-4 flex items-center justify-between text-slate-200 border-b border-slate-700/80 gap-1 sm:gap-2">
+        <div className="flex items-center space-x-2 truncate max-w-[140px] sm:max-w-xs">
           <FileText className="h-4 w-4 text-cyan-400 flex-shrink-0" />
           <span className="text-xs font-medium truncate" title={fileName}>
             {fileName}
           </span>
         </div>
 
-        {/* Botões de Ação de Visualização */}
-        <div className="flex items-center space-x-1 sm:space-x-1.5">
-          <Button
-            size="icon"
-            variant="ghost"
+        {/* Botões de Ação de Visualização com Touch Targets */}
+        <div className="flex items-center space-x-0.5 sm:space-x-1.5">
+          <button
             onClick={handleZoomOut}
-            className="h-8 w-8 text-slate-300 hover:text-white hover:bg-slate-700"
-            title="Reduzir zoom"
+            aria-label="Reduzir zoom"
+            className="touch-target p-2 text-slate-300 hover:text-white rounded-md active:bg-slate-700"
           >
             <ZoomOut className="h-4 w-4" />
-          </Button>
+          </button>
 
-          <span className="text-xs font-mono px-1.5 text-slate-400 min-w-[45px] text-center">
+          <span className="text-[11px] sm:text-xs font-mono px-1 text-slate-400 min-w-[38px] text-center">
             {zoom}%
           </span>
 
-          <Button
-            size="icon"
-            variant="ghost"
+          <button
             onClick={handleZoomIn}
-            className="h-8 w-8 text-slate-300 hover:text-white hover:bg-slate-700"
-            title="Aumentar zoom"
+            aria-label="Aumentar zoom"
+            className="touch-target p-2 text-slate-300 hover:text-white rounded-md active:bg-slate-700"
           >
             <ZoomIn className="h-4 w-4" />
-          </Button>
+          </button>
 
-          <div className="h-4 w-px bg-slate-700 mx-1" />
+          <div className="h-4 w-px bg-slate-700 mx-0.5 hidden xs:block" />
 
-          <Button
-            size="icon"
-            variant="ghost"
+          <button
             onClick={handleRotate}
-            className="h-8 w-8 text-slate-300 hover:text-white hover:bg-slate-700"
-            title="Girar documento"
+            aria-label="Girar documento"
+            className="touch-target p-2 text-slate-300 hover:text-white rounded-md active:bg-slate-700"
           >
             <RotateCw className="h-4 w-4" />
-          </Button>
+          </button>
 
-          <Button
-            size="icon"
-            variant="ghost"
+          <button
             onClick={toggleFullscreen}
-            className="h-8 w-8 text-slate-300 hover:text-white hover:bg-slate-700"
-            title={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+            aria-label={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
+            className="touch-target p-2 text-slate-300 hover:text-white rounded-md active:bg-slate-700"
           >
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          </button>
 
-          <Button
-            size="icon"
-            variant="ghost"
+          <button
             onClick={handlePrint}
-            className="h-8 w-8 text-slate-300 hover:text-white hover:bg-slate-700 hidden sm:flex"
-            title="Imprimir documento"
+            aria-label="Imprimir documento"
+            className="touch-target p-2 text-slate-300 hover:text-white rounded-md active:bg-slate-700 hidden sm:flex"
           >
             <Printer className="h-4 w-4" />
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* Área Central de Visualização */}
-      <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-950/90 relative">
+      <div className="flex-1 overflow-auto p-2 sm:p-4 flex items-center justify-center bg-slate-950/90 relative max-w-full">
         {isPdf ? (
           url && !url.includes("mock") ? (
             <iframe
@@ -145,60 +137,43 @@ export function DocumentViewer({
               title="Visualizador de PDF"
             />
           ) : (
-            // Renderização simulada e elegante de PDF Oficial
+            // Renderização simulada elegante e proporcional
             <div
-              className="bg-white text-slate-900 rounded-sm shadow-2xl p-8 sm:p-12 max-w-2xl w-full min-h-[550px] space-y-6"
+              className="bg-white text-slate-900 rounded-sm shadow-2xl p-5 sm:p-10 max-w-2xl w-full min-h-[380px] sm:min-h-[500px] space-y-4 sm:space-y-6 mx-auto overflow-hidden"
               style={{
                 transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
                 transformOrigin: "center center",
                 transition: "transform 0.15s ease-out",
               }}
             >
-              <div className="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xl font-bold tracking-tight text-[#0F4C5C]">REPÚBLICA FEDERATIVA DO BRASIL</span>
-                  </div>
-                  <p className="text-xs font-semibold text-slate-600 mt-1 uppercase">
+              <div className="border-b-2 border-slate-900 pb-3 flex justify-between items-start gap-2">
+                <div className="min-w-0">
+                  <span className="text-base sm:text-xl font-bold tracking-tight text-[#0F4C5C] block truncate">
+                    REPÚBLICA FEDERATIVA DO BRASIL
+                  </span>
+                  <p className="text-[10px] sm:text-xs font-semibold text-slate-600 uppercase mt-0.5 truncate">
                     Administração Pública Municipal • Gabinete Oficial
                   </p>
                 </div>
-                <div className="text-right">
-                  <span className="text-[10px] font-mono border border-slate-300 px-2 py-0.5 rounded bg-slate-50">
-                    VIA ORIGINAL DIGITALIZADA
-                  </span>
-                </div>
+                <span className="text-[9px] font-mono border border-slate-300 px-1.5 py-0.5 rounded bg-slate-50 flex-shrink-0">
+                  VIA DIGITAL
+                </span>
               </div>
 
-              <div className="space-y-4 text-xs leading-relaxed text-slate-800">
-                <div className="font-semibold text-slate-900 text-sm">
+              <div className="space-y-3 text-xs leading-relaxed text-slate-800">
+                <div className="font-semibold text-slate-900 text-xs sm:text-sm line-clamp-2">
                   {fileName.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ")}
                 </div>
 
-                <p className="indent-6">
-                  Certificamos que o presente documento oficial foi digitalizado em alta resolução, indexado com conformidade à integridade documental e armazenado no ambiente seguro de nuvem do <strong>ArquivoSec</strong>.
+                <p className="text-[11px] sm:text-xs indent-4 sm:indent-6">
+                  Certificamos a conferência e guarda permanente deste documento oficial com conformidade à integridade documental e armazenamento criptografado em nuvem (ArquivoSec).
                 </p>
 
-                {ocrText ? (
-                  <div className="bg-slate-50 border-l-2 border-[#0F4C5C] p-3 text-[11px] font-mono text-slate-700 whitespace-pre-wrap leading-normal rounded-r">
+                {ocrText && (
+                  <div className="bg-slate-50 border-l-2 border-[#0F4C5C] p-2 sm:p-3 text-[10px] sm:text-[11px] font-mono text-slate-700 whitespace-pre-wrap leading-normal rounded-r max-h-48 overflow-y-auto">
                     {ocrText}
                   </div>
-                ) : (
-                  <p className="italic text-slate-500 text-[11px]">
-                    Texto extraído via OCR processado e disponível para consulta full-text.
-                  </p>
                 )}
-
-                <div className="pt-8 flex justify-between items-end border-t border-slate-200 mt-8 text-[10px] text-slate-500">
-                  <div>
-                    <p>Hash SHA-256 Verificado</p>
-                    <p className="font-mono text-[9px] text-slate-400">8f4c5c2d94a10e83b5...e2f</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-slate-700">Autenticação Digital</p>
-                    <p>Assinado e Carimbado Digitalmente</p>
-                  </div>
-                </div>
               </div>
             </div>
           )
@@ -216,27 +191,26 @@ export function DocumentViewer({
             />
           ) : (
             <div
-              className="bg-slate-800 text-slate-200 rounded-lg p-8 max-w-md text-center space-y-4 shadow-xl border border-slate-700"
+              className="bg-slate-800 text-slate-200 rounded-lg p-6 max-w-sm text-center space-y-3 shadow-xl border border-slate-700"
               style={{
                 transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
                 transformOrigin: "center center",
                 transition: "transform 0.15s ease-out",
               }}
             >
-              <div className="h-16 w-16 mx-auto rounded-full bg-cyan-950 flex items-center justify-center text-cyan-400">
-                <FileText className="h-8 w-8" />
+              <div className="h-12 w-12 mx-auto rounded-full bg-cyan-950 flex items-center justify-center text-cyan-400">
+                <FileText className="h-6 w-6" />
               </div>
-              <h4 className="font-semibold text-sm">{fileName}</h4>
-              <p className="text-xs text-slate-400">
-                Visualização de imagem digitalizada em alta fidelidade.
+              <h4 className="font-semibold text-xs sm:text-sm truncate">{fileName}</h4>
+              <p className="text-[11px] text-slate-400">
+                Imagem digitalizada em alta definição arquivada com segurança.
               </p>
             </div>
           )
         ) : (
-          <div className="text-center text-slate-400 p-8">
-            <AlertCircle className="h-10 w-10 mx-auto text-amber-500 mb-2" />
-            <p className="text-sm font-medium">Formato não suportado para pré-visualização direta.</p>
-            <p className="text-xs text-slate-500 mt-1">Utilize o botão de download para visualizar em seu dispositivo.</p>
+          <div className="text-center text-slate-400 p-6">
+            <AlertCircle className="h-8 w-8 mx-auto text-amber-500 mb-2" />
+            <p className="text-xs sm:text-sm font-medium">Visualização direta indisponível para este formato.</p>
           </div>
         )}
       </div>

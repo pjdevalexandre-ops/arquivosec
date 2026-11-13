@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { ShieldCheck, Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export default function ForgotPasswordPage() {
@@ -20,34 +19,36 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-b from-background via-muted/30 to-background">
-      <div className="w-full max-w-md space-y-6">
+    <div className="min-h-[100dvh] flex flex-col justify-center items-center p-4 sm:p-6 bg-gradient-to-b from-background via-muted/30 to-background pt-safe pb-safe">
+      <div className="w-full max-w-md space-y-5 sm:space-y-6">
         <div className="text-center space-y-2">
-          <div className="mx-auto h-12 w-12 rounded-xl bg-[#0F4C5C] text-white flex items-center justify-center shadow-elevated">
-            <ShieldCheck className="h-7 w-7" />
+          <div className="mx-auto h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-[#0F4C5C] text-white flex items-center justify-center shadow-elevated">
+            <ShieldCheck className="h-7 w-7 sm:h-8 sm:w-8" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Recuperação de Senha</h1>
-          <p className="text-xs text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
+            Recuperação de Senha
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground px-2">
             Instruções seguras serão enviadas para redefinição do seu acesso
           </p>
         </div>
 
-        <div className="bg-card border border-border/80 rounded-2xl p-6 sm:p-8 shadow-card">
+        <div className="bg-card border border-border/80 rounded-2xl p-5 sm:p-8 shadow-card">
           {!isSubmitted ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground block">
+                <label className="text-xs sm:text-sm font-semibold text-foreground block">
                   E-mail Cadastrado
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                  <Input
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+                  <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="gestor@prefeitura.gov.br"
-                    className="pl-9 h-10 text-sm"
+                    placeholder="gestor@orgao.gov.br"
+                    className="w-full pl-11 pr-3 min-h-[48px] sm:min-h-[44px] rounded-xl border border-input bg-background text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0F4C5C]"
                   />
                 </div>
               </div>
@@ -55,18 +56,18 @@ export default function ForgotPasswordPage() {
               <Button
                 type="submit"
                 disabled={isLoading || !email}
-                className="w-full h-10 bg-[#0F4C5C] hover:bg-[#09333e] text-white font-medium rounded-lg shadow-sm"
+                className="w-full min-h-[48px] bg-[#0F4C5C] hover:bg-[#09333e] text-white font-bold rounded-xl shadow-sm text-sm sm:text-base mt-2 touch-manipulation active:scale-[0.99]"
               >
                 {isLoading ? "Enviando..." : "Enviar link de recuperação"}
               </Button>
             </form>
           ) : (
             <div className="text-center space-y-3 py-2">
-              <div className="h-10 w-10 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <CheckCircle2 className="h-6 w-6" />
+              <div className="h-12 w-12 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <CheckCircle2 className="h-7 w-7" />
               </div>
-              <h3 className="font-semibold text-sm text-foreground">E-mail enviado!</h3>
-              <p className="text-xs text-muted-foreground">
+              <h3 className="font-bold text-sm sm:text-base text-foreground">E-mail enviado!</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">
                 Se houver uma conta associada a <strong>{email}</strong>, você receberá um link temporário para criar uma nova senha.
               </p>
             </div>
@@ -75,9 +76,9 @@ export default function ForgotPasswordPage() {
           <div className="pt-4 border-t border-border/60 text-center mt-5">
             <Link
               href="/login"
-              className="text-xs text-[#0F4C5C] hover:underline inline-flex items-center space-x-1"
+              className="text-xs sm:text-sm text-[#0F4C5C] hover:underline inline-flex items-center space-x-1.5 touch-manipulation py-2 font-medium"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
+              <ArrowLeft className="h-4 w-4" />
               <span>Voltar para o login</span>
             </Link>
           </div>

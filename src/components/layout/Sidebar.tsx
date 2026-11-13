@@ -24,13 +24,15 @@ interface SidebarProps {
   storageLimit?: number;
   onOpenUpload?: () => void;
   className?: string;
+  onCloseMobile?: () => void;
 }
 
 export function Sidebar({
-  storageUsed = 48920150420, // ~48.9 GB
+  storageUsed = 0,
   storageLimit = 268435456000, // 250 GB
   onOpenUpload,
-  className
+  className,
+  onCloseMobile
 }: SidebarProps) {
   const pathname = usePathname();
 
@@ -48,32 +50,39 @@ export function Sidebar({
 
   return (
     <aside className={cn(
-      "w-64 flex-shrink-0 flex flex-col justify-between border-r border-border bg-card/60 backdrop-blur-md min-h-screen p-4 transition-all duration-200 select-none",
+      "w-64 flex-shrink-0 flex flex-col justify-between border-r border-border bg-card/80 backdrop-blur-md h-[100dvh] max-h-[100dvh] p-4 transition-all duration-200 select-none overflow-y-auto pb-safe pt-safe",
       className
     )}>
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Brand Header */}
-        <Link href="/" className="flex items-center space-x-2.5 px-2 py-1 group">
-          <div className="h-9 w-9 rounded-lg bg-[#0F4C5C] flex items-center justify-center text-white shadow-soft group-hover:scale-105 transition-transform">
+        <Link 
+          href="/" 
+          onClick={onCloseMobile}
+          className="flex items-center space-x-2.5 px-2 py-1.5 group rounded-lg focus-visible:ring-2 focus-visible:ring-[#0F4C5C]"
+        >
+          <div className="h-10 w-10 rounded-xl bg-[#0F4C5C] flex items-center justify-center text-white shadow-soft group-hover:scale-105 transition-transform flex-shrink-0">
             <ShieldCheck className="h-5 w-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center space-x-1.5">
-              <span className="font-semibold text-lg text-foreground tracking-tight">ArquivoSec</span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#0F4C5C]/10 text-[#0F4C5C]">
+              <span className="font-bold text-lg text-foreground tracking-tight">ArquivoSec</span>
+              <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#0F4C5C]/10 text-[#0F4C5C]">
                 GOV
               </span>
             </div>
-            <p className="text-[11px] text-muted-foreground font-medium">Gestão Documental em Nuvem</p>
+            <p className="text-[11px] text-muted-foreground font-medium truncate">Acervo Oficial em Nuvem</p>
           </div>
         </Link>
 
-        {/* Action Button: Enviar Documentos */}
+        {/* Botão Enviar Documentos */}
         {onOpenUpload && (
           <div className="px-1">
             <Button 
-              onClick={onOpenUpload}
-              className="w-full bg-[#0F4C5C] hover:bg-[#09333e] text-white shadow-sm font-medium flex items-center justify-center space-x-2 h-10 rounded-lg"
+              onClick={() => {
+                onCloseMobile?.();
+                onOpenUpload();
+              }}
+              className="w-full bg-[#0F4C5C] hover:bg-[#09333e] text-white shadow-sm font-semibold flex items-center justify-center space-x-2 min-h-[44px] h-11 rounded-xl text-xs sm:text-sm"
             >
               <Plus className="h-4 w-4" />
               <span>Enviar documentos</span>
@@ -81,7 +90,7 @@ export function Sidebar({
           </div>
         )}
 
-        {/* Navigation Menu */}
+        {/* Menu de Navegação Vertical */}
         <nav className="space-y-1">
           {navigation.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
@@ -91,14 +100,15 @@ export function Sidebar({
               <Link
                 key={item.name}
                 href={item.href}
+                onClick={onCloseMobile}
                 className={cn(
-                  "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                  "flex items-center space-x-3 px-3 py-2.5 min-h-[44px] rounded-xl text-sm font-medium transition-colors touch-manipulation",
                   isActive
                     ? "bg-[#0F4C5C]/10 text-[#0F4C5C] font-semibold dark:bg-[#0F4C5C]/25 dark:text-cyan-400"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
-                <Icon className={cn("h-4 w-4", isActive ? "text-[#0F4C5C] dark:text-cyan-400" : "text-muted-foreground")} />
+                <Icon className={cn("h-4 w-4 flex-shrink-0", isActive ? "text-[#0F4C5C] dark:text-cyan-400" : "text-muted-foreground")} />
                 <span>{item.name}</span>
               </Link>
             );
@@ -106,24 +116,24 @@ export function Sidebar({
         </nav>
       </div>
 
-      {/* Storage Meter - 250 GB Gauge */}
+      {/* Medidor de Armazenamento - 250 GB */}
       <div className="mt-auto pt-4 border-t border-border/80">
         <div className="bg-muted/40 rounded-xl p-3 border border-border/60">
-          <div className="flex items-center justify-between text-xs font-medium text-foreground mb-1.5">
+          <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-1.5">
             <div className="flex items-center space-x-1.5">
               <HardDrive className="h-3.5 w-3.5 text-[#0F4C5C]" />
               <span>Armazenamento</span>
             </div>
-            <span className="text-muted-foreground">{percentageUsed}%</span>
+            <span className="text-muted-foreground font-mono">{percentageUsed}%</span>
           </div>
 
           <Progress 
             value={percentageUsed} 
-            className="h-1.5 bg-muted" 
+            className="h-2 bg-muted rounded-full" 
             indicatorClassName="bg-[#0F4C5C]"
           />
 
-          <div className="flex justify-between items-center text-[11px] text-muted-foreground mt-2">
+          <div className="flex justify-between items-center text-[11px] text-muted-foreground mt-2 font-mono">
             <span>{formatBytes(storageUsed, 1)}</span>
             <span>de {formatBytes(storageLimit, 0)}</span>
           </div>
@@ -133,7 +143,7 @@ export function Sidebar({
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>Cloudflare R2 Ativo</span>
             </span>
-            <span className="font-mono">250 GB</span>
+            <span className="font-semibold text-foreground">250 GB</span>
           </div>
         </div>
       </div>

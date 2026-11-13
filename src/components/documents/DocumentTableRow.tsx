@@ -7,11 +7,9 @@ import {
   Star, 
   Share2, 
   Trash2, 
-  Download, 
   Sparkles,
   Folder as FolderIcon
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { DocumentItem } from "@/types";
 import { formatBytes, formatDate, getFileTypeBadge } from "@/lib/utils";
 
@@ -38,21 +36,24 @@ export function DocumentTableRow({
     <tr className={`border-b border-border/80 transition-colors hover:bg-muted/40 ${
       isSelected ? "bg-[#0F4C5C]/5" : ""
     }`}>
-      {/* Checkbox */}
+      {/* Checkbox com área de toque */}
       <td className="p-3 pl-4 w-10">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={(e) => onSelect?.(document.id, e.target.checked)}
-          className="h-4 w-4 rounded border-border text-[#0F4C5C] focus:ring-[#0F4C5C] cursor-pointer"
-        />
+        <label className="touch-target p-1 -m-1 cursor-pointer flex items-center">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => onSelect?.(document.id, e.target.checked)}
+            className="h-4 w-4 rounded border-border text-[#0F4C5C] focus:ring-[#0F4C5C] cursor-pointer"
+          />
+        </label>
       </td>
 
       {/* Favorito */}
       <td className="p-3 w-10 text-center">
         <button
           onClick={() => onToggleFavorite?.(document.id)}
-          className="text-muted-foreground hover:text-amber-500 transition-colors"
+          aria-label={document.is_favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+          className="touch-target p-1 text-muted-foreground hover:text-amber-500 transition-colors"
           title={document.is_favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
         >
           <Star
@@ -64,9 +65,9 @@ export function DocumentTableRow({
       </td>
 
       {/* Documento (Título, Número, Tipo) */}
-      <td className="p-3 min-w-[280px]">
+      <td className="p-3 min-w-[260px]">
         <div className="flex items-center space-x-3">
-          <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center text-[#0F4C5C] flex-shrink-0">
+          <div className="h-9 w-9 rounded-xl bg-muted flex items-center justify-center text-[#0F4C5C] flex-shrink-0">
             <FileText className="h-4 w-4" />
           </div>
 
@@ -74,7 +75,7 @@ export function DocumentTableRow({
             <div className="flex items-center space-x-1.5">
               <Link
                 href={`/documentos/${document.id}`}
-                className="font-semibold text-xs sm:text-sm text-foreground hover:text-[#0F4C5C] transition-colors truncate max-w-md block"
+                className="font-bold text-xs sm:text-sm text-foreground hover:text-[#0F4C5C] transition-colors truncate max-w-md block"
               >
                 {document.title}
               </Link>
@@ -114,7 +115,7 @@ export function DocumentTableRow({
       </td>
 
       {/* Tamanho */}
-      <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
+      <td className="p-3 text-xs text-muted-foreground whitespace-nowrap font-mono">
         {formatBytes(document.file_size_bytes)}
       </td>
 
@@ -140,25 +141,23 @@ export function DocumentTableRow({
       {/* Ações */}
       <td className="p-3 text-right whitespace-nowrap pr-4">
         <div className="flex items-center justify-end space-x-1">
-          <Button
-            size="icon"
-            variant="ghost"
+          <button
             onClick={() => onShare?.(document)}
-            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            aria-label="Compartilhar documento"
+            className="touch-target p-1.5 text-muted-foreground hover:text-foreground rounded-lg"
             title="Compartilhar"
           >
-            <Share2 className="h-3.5 w-3.5" />
-          </Button>
+            <Share2 className="h-4 w-4" />
+          </button>
 
-          <Button
-            size="icon"
-            variant="ghost"
+          <button
             onClick={() => onDelete?.(document.id)}
-            className="h-7 w-7 text-muted-foreground hover:text-rose-600"
+            aria-label="Excluir documento"
+            className="touch-target p-1.5 text-muted-foreground hover:text-rose-600 rounded-lg"
             title="Excluir"
           >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+            <Trash2 className="h-4 w-4" />
+          </button>
         </div>
       </td>
     </tr>

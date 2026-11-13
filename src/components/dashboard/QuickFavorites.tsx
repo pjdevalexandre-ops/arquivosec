@@ -36,7 +36,7 @@ export function QuickFavorites({ documents }: QuickFavoritesProps) {
           <Link
             key={doc.id}
             href={`/documentos/${doc.id}`}
-            className="p-3 bg-card border border-border/80 rounded-xl hover:border-[#0F4C5C]/50 hover:shadow-soft transition-all block group"
+            className="p-3 min-h-[56px] bg-card border border-border/80 rounded-xl hover:border-[#0F4C5C]/50 hover:shadow-soft transition-all flex items-center group touch-manipulation"
           >
             <div className="flex items-start space-x-2.5">
               <div className="h-8 w-8 rounded-lg bg-[#0F4C5C]/10 text-[#0F4C5C] flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">

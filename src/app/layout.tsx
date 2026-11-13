@@ -7,12 +7,27 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "ArquivoSec",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
+// Configuração rigorosa de Viewport para iOS e Android com viewport-fit=cover
 export const viewport: Viewport = {
-  themeColor: "#0F4C5C",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0F4C5C" },
+    { media: "(prefers-color-scheme: dark)", color: "#09333e" },
+  ],
 };
 
 export default function RootLayout({
@@ -23,6 +38,13 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        {/* Meta tag obrigatória de viewport com viewport-fit=cover para suporte a entalhes / Dynamic Island */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover"
+        />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -43,7 +65,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="font-sans min-h-screen bg-background text-foreground antialiased tracking-normal">
+      <body className="font-sans min-h-[100dvh] bg-background text-foreground antialiased tracking-normal overflow-x-hidden selection:bg-brand-subtle selection:text-brand">
         {children}
       </body>
     </html>

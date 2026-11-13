@@ -14,11 +14,7 @@ import {
   Sparkles, 
   Calendar, 
   Clock, 
-  HardDrive, 
-  ShieldCheck,
-  Building2,
-  FileCheck2,
-  Check
+  Building2
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DocumentViewer } from "@/components/documents/DocumentViewer";
@@ -27,13 +23,36 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { mockDocuments } from "@/lib/mock-data";
 import { formatBytes, formatDate, formatDateTime, getFileTypeBadge } from "@/lib/utils";
+import type { DocumentItem } from "@/types";
 
 export default function DocumentDetailPage() {
   const params = useParams();
   const router = useRouter();
   const docId = params.id as string;
 
-  const doc = mockDocuments.find((d) => d.id === docId) || mockDocuments[0];
+  const fallbackDoc: DocumentItem = {
+    id: docId,
+    user_id: "gestor",
+    title: "Documento Oficial",
+    document_number: "OF-2024",
+    document_date: new Date().toISOString().split("T")[0],
+    origin_sector: "Gabinete Geral",
+    folder_id: null,
+    type_id: null,
+    file_key: "docs/sample.pdf",
+    file_name: "documento.pdf",
+    mime_type: "application/pdf",
+    file_extension: "pdf",
+    file_size_bytes: 1024000,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    is_favorite: false,
+    is_trashed: false,
+    ocr_status: "completed",
+    notes: "",
+  };
+
+  const doc = mockDocuments.find((d) => d.id === docId) || fallbackDoc;
 
   const [isFavorite, setIsFavorite] = useState(doc.is_favorite);
   const [isShareOpen, setIsShareOpen] = useState(false);
@@ -55,79 +74,77 @@ export default function DocumentDetailPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-4">
+      <div className="space-y-4 max-w-full">
         {/* Barra Superior de Navegação e Ações Rápidas */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/80">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
             <Link
               href="/documentos"
-              className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Voltar para a lista de documentos"
+              className="touch-target p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
               title="Voltar para a lista"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-5 w-5" />
             </Link>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${badge.bg}`}>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
+                <span className={`text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${badge.bg}`}>
                   {badge.label}
                 </span>
-                <h1 className="text-base sm:text-lg font-bold text-foreground line-clamp-1">
+                <h1 className="text-sm sm:text-lg font-bold text-foreground line-clamp-1 truncate">
                   {doc.title}
                 </h1>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {doc.document_number ? `Ref: ${doc.document_number}` : "Documento Digitalizado"} • Enviado em {formatDateTime(doc.created_at)}
+              <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 truncate">
+                {doc.document_number ? `Ref: ${doc.document_number}` : "Documento Digitalizado"} • {formatDate(doc.created_at)}
               </p>
             </div>
           </div>
 
-          {/* Botões de Ação */}
-          <div className="flex items-center space-x-1.5 flex-wrap">
-            <Button
-              variant="outline"
-              size="sm"
+          {/* Botões de Ação com Touch Targets de 44px */}
+          <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0">
+            <button
               onClick={() => setIsFavorite(!isFavorite)}
-              className="h-8 text-xs flex items-center space-x-1"
+              aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+              className="touch-target px-3 py-2 rounded-lg border border-border bg-background text-xs font-semibold flex items-center space-x-1.5 active:bg-muted"
             >
-              <Star className={`h-3.5 w-3.5 ${isFavorite ? "fill-amber-400 text-amber-500" : ""}`} />
+              <Star className={`h-4 w-4 ${isFavorite ? "fill-amber-400 text-amber-500" : ""}`} />
               <span className="hidden sm:inline">{isFavorite ? "Favorito" : "Favoritar"}</span>
-            </Button>
+            </button>
 
-            <Button
-              variant="outline"
-              size="sm"
+            <button
               onClick={() => setIsShareOpen(true)}
-              className="h-8 text-xs flex items-center space-x-1"
+              aria-label="Compartilhar documento"
+              className="touch-target px-3 py-2 rounded-lg border border-border bg-background text-xs font-semibold flex items-center space-x-1.5 active:bg-muted"
             >
-              <Share2 className="h-3.5 w-3.5" />
+              <Share2 className="h-4 w-4" />
               <span>Compartilhar</span>
-            </Button>
+            </button>
 
-            <Button
-              size="sm"
+            <button
               onClick={handleDownload}
-              className="h-8 text-xs bg-[#0F4C5C] hover:bg-[#09333e] text-white flex items-center space-x-1"
+              aria-label="Baixar documento"
+              className="touch-target px-3.5 py-2 rounded-lg bg-[#0F4C5C] hover:bg-[#09333e] text-white text-xs font-bold flex items-center space-x-1.5 shadow-sm active:scale-95"
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className="h-4 w-4" />
               <span>Baixar</span>
-            </Button>
+            </button>
 
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={handleDelete}
-              className="h-8 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-2"
+              aria-label="Excluir documento"
+              className="touch-target p-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg"
               title="Excluir documento"
             >
               <Trash2 className="h-4 w-4" />
-            </Button>
+            </button>
           </div>
         </div>
 
         {/* Layout Dividido: Visualizador (Esquerda) e Painel Lateral (Direita) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Visualizador In-Page (8 colunas) */}
-          <div className="lg:col-span-8 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
+          {/* Visualizador In-Page */}
+          <div className="lg:col-span-8 space-y-3 sm:space-y-4">
             <DocumentViewer
               fileName={doc.file_name}
               mimeType={doc.mime_type}
@@ -137,13 +154,13 @@ export default function DocumentDetailPage() {
             {/* Status OCR em Destaque */}
             <div className="p-3 bg-muted/30 border border-border/80 rounded-xl flex items-center justify-between text-xs">
               <div className="flex items-center space-x-2">
-                <Sparkles className="h-4 w-4 text-[#0F4C5C]" />
+                <Sparkles className="h-4 w-4 text-[#0F4C5C] flex-shrink-0" />
                 <span className="font-semibold text-foreground">Status do Reconhecimento (OCR):</span>
                 {doc.ocr_status === "completed" && (
-                  <Badge variant="emerald" className="text-[10px]">Indexado com Sucesso</Badge>
+                  <Badge variant="emerald" className="text-[10px]">Indexado</Badge>
                 )}
                 {doc.ocr_status === "processing" && (
-                  <Badge variant="amber" className="text-[10px]">Processando texto...</Badge>
+                  <Badge variant="amber" className="text-[10px]">Processando...</Badge>
                 )}
               </div>
               <span className="text-[11px] text-muted-foreground hidden sm:inline">
@@ -152,15 +169,15 @@ export default function DocumentDetailPage() {
             </div>
           </div>
 
-          {/* Painel Lateral com Informações e Metadados (4 colunas) */}
+          {/* Painel Lateral com Informações e Metadados */}
           <div className="lg:col-span-4 bg-card border border-border/80 rounded-xl overflow-hidden shadow-soft">
-            {/* Abas */}
-            <div className="flex border-b border-border text-xs font-medium">
+            {/* Abas com Touch Target */}
+            <div className="flex border-b border-border text-xs font-semibold">
               <button
                 onClick={() => setActiveTab("info")}
-                className={`flex-1 py-3 text-center transition-colors border-b-2 ${
+                className={`flex-1 py-3 text-center transition-colors border-b-2 min-h-[44px] ${
                   activeTab === "info"
-                    ? "border-[#0F4C5C] text-[#0F4C5C] font-semibold bg-muted/20"
+                    ? "border-[#0F4C5C] text-[#0F4C5C] bg-muted/20"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -168,19 +185,19 @@ export default function DocumentDetailPage() {
               </button>
               <button
                 onClick={() => setActiveTab("ocr")}
-                className={`flex-1 py-3 text-center transition-colors border-b-2 ${
+                className={`flex-1 py-3 text-center transition-colors border-b-2 min-h-[44px] ${
                   activeTab === "ocr"
-                    ? "border-[#0F4C5C] text-[#0F4C5C] font-semibold bg-muted/20"
+                    ? "border-[#0F4C5C] text-[#0F4C5C] bg-muted/20"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Texto Extraído (OCR)
+                Texto (OCR)
               </button>
               <button
                 onClick={() => setActiveTab("history")}
-                className={`flex-1 py-3 text-center transition-colors border-b-2 ${
+                className={`flex-1 py-3 text-center transition-colors border-b-2 min-h-[44px] ${
                   activeTab === "history"
-                    ? "border-[#0F4C5C] text-[#0F4C5C] font-semibold bg-muted/20"
+                    ? "border-[#0F4C5C] text-[#0F4C5C] bg-muted/20"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -191,7 +208,6 @@ export default function DocumentDetailPage() {
             <div className="p-4 space-y-4 text-xs">
               {activeTab === "info" && (
                 <>
-                  {/* Metadados Primários */}
                   <div className="space-y-3">
                     <div>
                       <span className="text-[11px] text-muted-foreground block">Tipo de Documento</span>
@@ -202,7 +218,7 @@ export default function DocumentDetailPage() {
 
                     <div>
                       <span className="text-[11px] text-muted-foreground block">Número de Registro</span>
-                      <span className="font-mono text-foreground font-medium">
+                      <span className="font-mono text-foreground font-medium text-xs sm:text-sm">
                         {doc.document_number || "Não informado"}
                       </span>
                     </div>
@@ -225,7 +241,7 @@ export default function DocumentDetailPage() {
                     <div>
                       <span className="text-[11px] text-muted-foreground block">Origem / Órgão Expedidor</span>
                       <span className="text-foreground flex items-center space-x-1.5 mt-0.5">
-                        <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Building2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
                         <span>{doc.origin_sector || "Gabinete Geral"}</span>
                       </span>
                     </div>
@@ -233,34 +249,19 @@ export default function DocumentDetailPage() {
                     <div>
                       <span className="text-[11px] text-muted-foreground block">Pasta de Arquivamento</span>
                       <span className="text-foreground flex items-center space-x-1.5 mt-0.5">
-                        <FolderInput className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span>{doc.folder?.name || "Gabinete do Secretário"}</span>
+                        <FolderInput className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <span>{doc.folder?.name || "Gabinete do Gestor"}</span>
                       </span>
                     </div>
                   </div>
 
-                  {/* Tags */}
-                  <div className="pt-3 border-t border-border/80">
-                    <span className="text-[11px] text-muted-foreground block mb-1.5">Tags Associadas</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {doc.tags?.map((t) => (
-                        <span
-                          key={t.id}
-                          className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-muted text-foreground border border-border"
-                        >
-                          #{t.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Observações com Edição Rápida */}
+                  {/* Observações com Edição Touch-Friendly */}
                   <div className="pt-3 border-t border-border/80">
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-[11px] text-muted-foreground font-medium">Observações Internas</span>
                       <button
                         onClick={() => setIsEditingNotes(!isEditingNotes)}
-                        className="text-[11px] text-[#0F4C5C] hover:underline flex items-center space-x-1"
+                        className="text-[11px] text-[#0F4C5C] hover:underline flex items-center space-x-1 py-1 touch-manipulation"
                       >
                         <Edit3 className="h-3 w-3" />
                         <span>{isEditingNotes ? "Cancelar" : "Editar"}</span>
@@ -272,16 +273,15 @@ export default function DocumentDetailPage() {
                         <textarea
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
-                          className="w-full h-20 text-xs p-2 rounded-lg border border-input bg-background"
+                          className="w-full h-24 text-base sm:text-xs p-2.5 rounded-lg border border-input bg-background focus:ring-1 focus:ring-[#0F4C5C]"
                           placeholder="Adicione anotações sobre tramitação ou auditoria..."
                         />
-                        <Button
-                          size="sm"
+                        <button
                           onClick={() => setIsEditingNotes(false)}
-                          className="h-7 text-xs bg-[#0F4C5C] text-white"
+                          className="min-h-[40px] px-3 rounded-lg text-xs font-semibold bg-[#0F4C5C] text-white active:scale-95"
                         >
                           Salvar Nota
-                        </Button>
+                        </button>
                       </div>
                     ) : (
                       <p className="text-muted-foreground leading-relaxed bg-muted/30 p-2.5 rounded-lg border border-border/60">
@@ -298,7 +298,7 @@ export default function DocumentDetailPage() {
                     <span className="text-xs font-semibold text-foreground">Conteúdo Textual Indexado</span>
                     <Badge variant="outline" className="text-[10px]">Tesseract OCR (pt)</Badge>
                   </div>
-                  <div className="max-h-96 overflow-y-auto p-3 bg-muted/40 rounded-lg border border-border/80 text-[11px] font-mono leading-relaxed whitespace-pre-wrap text-foreground">
+                  <div className="max-h-80 overflow-y-auto p-3 bg-muted/40 rounded-lg border border-border/80 text-[11px] font-mono leading-relaxed whitespace-pre-wrap text-foreground">
                     {doc.ocr_text || "Nenhum texto pôde ser extraído."}
                   </div>
                 </div>
@@ -307,16 +307,16 @@ export default function DocumentDetailPage() {
               {activeTab === "history" && (
                 <div className="space-y-3">
                   <span className="text-xs font-semibold text-foreground">Trilha de Eventos</span>
-                  <div className="space-y-2 border-l-2 border-border pl-3 ml-1">
+                  <div className="space-y-2.5 border-l-2 border-border pl-3 ml-1">
                     <div className="relative pb-2">
                       <div className="absolute -left-[17px] top-1 h-2 w-2 rounded-full bg-[#0F4C5C]" />
-                      <p className="font-semibold text-foreground">Envio e Guarda Segura</p>
+                      <p className="font-semibold text-foreground">Guarda Segura</p>
                       <p className="text-[10px] text-muted-foreground">{formatDateTime(doc.created_at)}</p>
                     </div>
 
                     <div className="relative pb-2">
                       <div className="absolute -left-[17px] top-1 h-2 w-2 rounded-full bg-emerald-500" />
-                      <p className="font-semibold text-foreground">Extração OCR Concluída</p>
+                      <p className="font-semibold text-foreground">Indexação OCR</p>
                       <p className="text-[10px] text-muted-foreground">Indexado no motor PostgreSQL FTS</p>
                     </div>
 

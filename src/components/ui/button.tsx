@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none touch-manipulation active:scale-[0.98]",
   {
     variants: {
       variant: {
@@ -17,10 +17,11 @@ const buttonVariants = cva(
         brand: "bg-[#0F4C5C] text-white hover:bg-[#09333e] shadow-sm",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-11 rounded-lg px-6 text-base",
-        icon: "h-9 w-9",
+        // Altura mínima de 44px em telas de toque (mobile) e 36px em desktop
+        default: "min-h-[44px] sm:min-h-[36px] h-11 sm:h-9 px-4 py-2",
+        sm: "min-h-[40px] sm:min-h-[32px] h-10 sm:h-8 rounded-md px-3 text-xs",
+        lg: "min-h-[48px] h-12 rounded-lg px-6 text-base",
+        icon: "min-h-[44px] min-w-[44px] sm:min-h-[36px] sm:min-w-[36px] h-11 w-11 sm:h-9 sm:w-9 p-0",
       },
     },
     defaultVariants: {

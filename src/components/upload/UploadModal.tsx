@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { formatBytes, sanitizeFileName } from "@/lib/utils";
@@ -90,14 +89,13 @@ export function UploadModal({
     );
   };
 
-  // Upload individual com rastreamento real de progresso e resiliência
+  // Upload com monitoramento real de progresso e resiliência
   const uploadSingleItem = async (item: UploadQueueItem) => {
     setQueue((prev) =>
       prev.map((it) => (it.id === item.id ? { ...it, status: "uploading", progress: 5, error_message: undefined } : it))
     );
 
     try {
-      // 1. Obter presigned URL para o Cloudflare R2
       const presignRes = await fetch("/api/upload/presigned", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -110,15 +108,13 @@ export function UploadModal({
 
       if (!presignRes.ok) {
         const errJson = await presignRes.json().catch(() => ({}));
-        throw new Error(errJson.error || "Falha na autorização do upload com R2.");
+        throw new Error(errJson.error || "Falha na autorização com Cloudflare R2.");
       }
 
       const { uploadUrl, fileKey } = await presignRes.json();
 
-      // 2. Upload direto com monitoramento real de bytes via XMLHttpRequest
       await new Promise<void>((resolve, reject) => {
         if (!uploadUrl || uploadUrl.includes("/api/mock-upload")) {
-          // Emulação suave se em modo demonstração
           let progress = 10;
           const interval = setInterval(() => {
             progress += 30;
@@ -151,7 +147,7 @@ export function UploadModal({
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve();
           } else {
-            reject(new Error(`Falha no envio para o R2 (Código HTTP ${xhr.status})`));
+            reject(new Error(`Falha no envio para o R2 (${xhr.status})`));
           }
         };
 
@@ -161,7 +157,6 @@ export function UploadModal({
         xhr.send(item.file);
       });
 
-      // 3. Gravação garantida dos metadados no banco e acionamento do OCR
       setQueue((prev) =>
         prev.map((it) => (it.id === item.id ? { ...it, status: "processing_ocr", progress: 95 } : it))
       );
@@ -211,7 +206,7 @@ export function UploadModal({
             ? {
                 ...it,
                 status: "error",
-                error_message: err.message || "Erro desconhecido durante o upload.",
+                error_message: err.message || "Erro durante o envio.",
               }
             : it
         )
@@ -238,19 +233,19 @@ export function UploadModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
-        <DialogHeader>
-          <DialogTitle className="text-xl flex items-center space-x-2 text-[#0F4C5C]">
-            <Upload className="h-5 w-5" />
+      <DialogContent className="w-full max-w-3xl h-[100dvh] sm:h-auto sm:max-h-[90vh] flex flex-col p-4 sm:p-6 overflow-hidden pt-safe pb-safe rounded-none sm:rounded-2xl">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="text-lg sm:text-xl flex items-center space-x-2 text-[#0F4C5C]">
+            <Upload className="h-5 w-5 flex-shrink-0" />
             <span>Enviar Documentos para Nuvem</span>
           </DialogTitle>
-          <DialogDescription>
-            Envio direto para bucket seguro Cloudflare R2 com indexação automática via OCR e proteção contra perda.
+          <DialogDescription className="text-xs">
+            Envio direto para bucket seguro Cloudflare R2 com indexação automática via OCR.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-5 pr-1 py-1">
-          {/* Zona de Drop */}
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1 py-1">
+          {/* Zona de Drop / Seleção Touch */}
           <div
             onDragOver={(e) => {
               e.preventDefault();
@@ -259,7 +254,7 @@ export function UploadModal({
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+            className={`border-2 border-dashed rounded-xl p-5 sm:p-6 text-center cursor-pointer transition-all active:scale-[0.99] touch-manipulation ${
               isDragging
                 ? "border-[#0F4C5C] bg-[#0F4C5C]/5"
                 : "border-border hover:border-[#0F4C5C]/50 hover:bg-muted/40"
@@ -277,46 +272,44 @@ export function UploadModal({
               <div className="h-12 w-12 rounded-full bg-[#0F4C5C]/10 text-[#0F4C5C] flex items-center justify-center">
                 <Upload className="h-6 w-6" />
               </div>
-              <p className="font-semibold text-sm text-foreground">
-                Arraste seus PDFs ou imagens digitalizadas até aqui
+              <p className="font-bold text-xs sm:text-sm text-foreground">
+                Toque para selecionar PDFs ou fotos digitalizadas
               </p>
-              <p className="text-xs text-muted-foreground">
-                ou clique para selecionar do computador. Cota total de 250 GB.
+              <p className="text-[11px] sm:text-xs text-muted-foreground">
+                Cota de 250 GB com suporte a envio em partes.
               </p>
-              <div className="flex items-center space-x-2 pt-2">
-                <Badge variant="outline" className="text-[10px]">PDF</Badge>
-                <Badge variant="outline" className="text-[10px]">JPEG / PNG</Badge>
-                <Badge variant="outline" className="text-[10px]">TIFF / WEBP</Badge>
-                <span className="text-[11px] text-muted-foreground font-medium">Upload Direto Seguro (R2)</span>
+              <div className="flex items-center space-x-1.5 pt-1 flex-wrap justify-center">
+                <Badge variant="outline" className="text-[9px]">PDF</Badge>
+                <Badge variant="outline" className="text-[9px]">JPEG / PNG</Badge>
+                <Badge variant="outline" className="text-[9px]">TIFF / WEBP</Badge>
               </div>
             </div>
           </div>
 
-          {/* Opção de Configuração em Lote (Aplicar a todos) */}
+          {/* Configuração em Lote */}
           {queue.length > 1 && (
-            <div className="bg-muted/30 border border-border/80 rounded-xl p-4 space-y-3">
+            <div className="bg-muted/30 border border-border/80 rounded-xl p-3 sm:p-4 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-foreground flex items-center space-x-1.5">
                   <Layers className="h-4 w-4 text-[#0F4C5C]" />
-                  <span>Aplicar Pasta e Tipo a Todos ({queue.length} arquivos)</span>
+                  <span>Aplicar a Todos ({queue.length})</span>
                 </span>
-                <Button
-                  size="sm"
-                  variant="outline"
+                <button
+                  type="button"
                   onClick={applyBatchMetadata}
-                  className="h-7 text-xs"
+                  className="touch-target px-3 py-1 text-xs font-semibold rounded-lg border border-border bg-background hover:bg-muted"
                 >
-                  Aplicar aos itens
-                </Button>
+                  Aplicar
+                </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
-                  <label className="text-[11px] text-muted-foreground block mb-1">Pasta Destino</label>
+                  <label className="text-[10px] sm:text-[11px] text-muted-foreground block mb-1">Pasta</label>
                   <select
                     value={batchFolderId}
                     onChange={(e) => setBatchFolderId(e.target.value)}
-                    className="w-full h-8 text-xs rounded-lg border border-input bg-background px-2"
+                    className="w-full min-h-[40px] sm:min-h-[32px] h-10 sm:h-8 text-base sm:text-xs rounded-lg border border-input bg-background px-2"
                   >
                     <option value="">Selecione uma pasta...</option>
                     {folders.map((f) => (
@@ -326,11 +319,11 @@ export function UploadModal({
                 </div>
 
                 <div>
-                  <label className="text-[11px] text-muted-foreground block mb-1">Tipo de Documento</label>
+                  <label className="text-[10px] sm:text-[11px] text-muted-foreground block mb-1">Tipo</label>
                   <select
                     value={batchTypeId}
                     onChange={(e) => setBatchTypeId(e.target.value)}
-                    className="w-full h-8 text-xs rounded-lg border border-input bg-background px-2"
+                    className="w-full min-h-[40px] sm:min-h-[32px] h-10 sm:h-8 text-base sm:text-xs rounded-lg border border-input bg-background px-2"
                   >
                     <option value="">Selecione o tipo...</option>
                     {documentTypes.map((t) => (
@@ -340,12 +333,12 @@ export function UploadModal({
                 </div>
 
                 <div>
-                  <label className="text-[11px] text-muted-foreground block mb-1">Origem / Setor</label>
-                  <Input
-                    placeholder="Ex: Gabinete, Licitações..."
+                  <label className="text-[10px] sm:text-[11px] text-muted-foreground block mb-1">Origem / Setor</label>
+                  <input
+                    placeholder="Ex: Gabinete, Fazenda..."
                     value={batchOrigin}
                     onChange={(e) => setBatchOrigin(e.target.value)}
-                    className="h-8 text-xs"
+                    className="w-full min-h-[40px] sm:min-h-[32px] h-10 sm:h-8 text-base sm:text-xs rounded-lg border border-input bg-background px-2"
                   />
                 </div>
               </div>
@@ -354,17 +347,17 @@ export function UploadModal({
 
           {/* Fila de Arquivos Selecionados */}
           {queue.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-foreground">
-                  Fila de Envio ({queue.length})
+                  Fila ({queue.length})
                 </span>
                 <span className="text-xs text-muted-foreground font-mono">
-                  Total: {formatBytes(queue.reduce((acc, it) => acc + it.file.size, 0))}
+                  {formatBytes(queue.reduce((acc, it) => acc + it.file.size, 0))}
                 </span>
               </div>
 
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {queue.map((item) => (
                   <div
                     key={item.id}
@@ -377,23 +370,23 @@ export function UploadModal({
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center space-x-2 min-w-0">
                         <FileText className="h-4 w-4 text-[#0F4C5C] flex-shrink-0" />
-                        <span className="font-semibold text-foreground truncate">{item.file.name}</span>
-                        <span className="text-muted-foreground flex-shrink-0 font-mono text-[11px]">
+                        <span className="font-semibold text-foreground truncate block max-w-[150px] sm:max-w-xs">{item.file.name}</span>
+                        <span className="text-muted-foreground flex-shrink-0 font-mono text-[10px]">
                           ({formatBytes(item.file.size)})
                         </span>
                       </div>
 
-                      <div className="flex items-center space-x-2 flex-shrink-0">
+                      <div className="flex items-center space-x-1.5 flex-shrink-0">
                         {item.status === "completed" && (
                           <span className="flex items-center space-x-1 text-emerald-600 font-medium text-[11px]">
                             <CheckCircle2 className="h-3.5 w-3.5" />
-                            <span>Enviado e Seguro</span>
+                            <span className="hidden xs:inline">Enviado</span>
                           </span>
                         )}
                         {item.status === "processing_ocr" && (
                           <span className="flex items-center space-x-1 text-amber-600 font-medium text-[11px]">
                             <Sparkles className="h-3.5 w-3.5 animate-spin" />
-                            <span>Indexando OCR...</span>
+                            <span className="hidden xs:inline">OCR...</span>
                           </span>
                         )}
                         {item.status === "uploading" && (
@@ -402,18 +395,14 @@ export function UploadModal({
                           </span>
                         )}
                         {item.status === "error" && (
-                          <div className="flex items-center space-x-1.5">
-                            <span className="flex items-center space-x-1 text-rose-600 font-medium text-[11px]" title={item.error_message}>
-                              <AlertCircle className="h-3.5 w-3.5" />
-                              <span>Falha</span>
-                            </span>
+                          <div className="flex items-center space-x-1">
+                            <span className="text-rose-600 font-medium text-[11px]">Falha</span>
                             <button
                               onClick={() => uploadSingleItem(item)}
-                              className="text-xs text-[#0F4C5C] hover:underline flex items-center space-x-0.5 ml-1"
+                              className="touch-target p-1 text-[#0F4C5C] hover:underline"
                               title="Tentar novamente"
                             >
-                              <RotateCcw className="h-3 w-3" />
-                              <span>Repetir</span>
+                              <RotateCcw className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         )}
@@ -421,38 +410,37 @@ export function UploadModal({
                         {item.status !== "uploading" && item.status !== "processing_ocr" && (
                           <button
                             onClick={() => removeItem(item.id)}
-                            className="text-muted-foreground hover:text-foreground p-1"
-                            title="Remover da fila"
+                            className="touch-target p-1 text-muted-foreground hover:text-foreground"
+                            title="Remover"
+                            aria-label="Remover arquivo"
                           >
-                            <X className="h-3.5 w-3.5" />
+                            <X className="h-4 w-4" />
                           </button>
                         )}
                       </div>
                     </div>
 
-                    {/* Barra de Progresso Real */}
                     {(item.status === "uploading" || item.status === "processing_ocr") && (
                       <Progress value={item.progress} className="h-1.5" indicatorClassName="bg-[#0F4C5C]" />
                     )}
 
-                    {/* Metadados Rápidos do Arquivo */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-border/40">
                       <div>
-                        <label className="text-[10px] text-muted-foreground block">Título do Documento</label>
-                        <Input
+                        <label className="text-[10px] text-muted-foreground block">Título Oficial</label>
+                        <input
                           value={item.title}
                           onChange={(e) =>
                             setQueue((prev) =>
                               prev.map((it) => (it.id === item.id ? { ...it, title: e.target.value } : it))
                             )
                           }
-                          className="h-7 text-xs"
+                          className="w-full min-h-[40px] sm:min-h-[28px] h-10 sm:h-7 text-base sm:text-xs rounded-lg border border-input bg-background px-2"
                           placeholder="Título oficial"
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] text-muted-foreground block">Número / Referência</label>
-                        <Input
+                        <label className="text-[10px] text-muted-foreground block">Número / Ref.</label>
+                        <input
                           value={item.document_number}
                           onChange={(e) =>
                             setQueue((prev) =>
@@ -461,7 +449,7 @@ export function UploadModal({
                               )
                             )
                           }
-                          className="h-7 text-xs"
+                          className="w-full min-h-[40px] sm:min-h-[28px] h-10 sm:h-7 text-base sm:text-xs rounded-lg border border-input bg-background px-2"
                           placeholder="Ex: OF-102/2024"
                         />
                       </div>
@@ -476,7 +464,7 @@ export function UploadModal({
                               )
                             )
                           }
-                          className="w-full h-7 text-xs rounded-lg border border-input bg-background px-2"
+                          className="w-full min-h-[40px] sm:min-h-[28px] h-10 sm:h-7 text-base sm:text-xs rounded-lg border border-input bg-background px-2"
                         >
                           {folders.map((f) => (
                             <option key={f.id} value={f.id}>{f.name}</option>
@@ -491,38 +479,43 @@ export function UploadModal({
           )}
         </div>
 
-        {/* Rodapé de Ações */}
-        <div className="pt-4 border-t border-border flex items-center justify-between">
-          <Button variant="ghost" onClick={onClose} disabled={isUploading}>
+        {/* Rodapé de Ações com Touch Targets */}
+        <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
+          <button 
+            type="button" 
+            onClick={onClose} 
+            disabled={isUploading}
+            className="touch-target px-4 py-2 text-xs font-semibold rounded-lg hover:bg-muted text-muted-foreground"
+          >
             {allCompleted ? "Fechar" : "Cancelar"}
-          </Button>
+          </button>
 
-          <div className="flex items-center space-x-2">
+          <div>
             {allCompleted ? (
-              <Button
+              <button
                 onClick={onClose}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                className="touch-target min-h-[44px] px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs active:scale-95"
               >
-                Concluído com Sucesso
-              </Button>
+                Concluído
+              </button>
             ) : (
-              <Button
+              <button
                 onClick={startUploads}
                 disabled={queue.length === 0 || isUploading}
-                className="bg-[#0F4C5C] hover:bg-[#09333e] text-white flex items-center space-x-1.5 font-medium shadow-sm"
+                className="touch-target min-h-[44px] px-5 py-2 bg-[#0F4C5C] hover:bg-[#09333e] text-white font-bold rounded-xl text-xs flex items-center space-x-1.5 shadow-sm active:scale-95 disabled:opacity-50"
               >
                 {isUploading ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Enviando em partes...</span>
+                    <span>Enviando...</span>
                   </>
                 ) : (
                   <>
-                    <span>Iniciar Envio Seguro ({queue.length})</span>
+                    <span>Enviar ({queue.length})</span>
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}
-              </Button>
+              </button>
             )}
           </div>
         </div>

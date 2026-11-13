@@ -13,7 +13,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 20% 12%;
 
-    /* Azul-petróleo #0F4C5C -> HSL: 192, 72%, 21% */
+    /* Azul-petróleo institucional #0F4C5C -> HSL: 192, 72%, 21% */
     --primary: 192 72% 21%;
     --primary-foreground: 210 40% 98%;
 
@@ -34,6 +34,12 @@
     --ring: 192 72% 21%;
 
     --radius: 0.625rem; /* 10px */
+
+    /* Safe Area Variables */
+    --sat: env(safe-area-inset-top, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
   }
 
   .dark {
@@ -46,7 +52,6 @@
     --popover: 222 22% 13%;
     --popover-foreground: 210 20% 96%;
 
-    /* Azul-petróleo ajustado para dark mode: #1a6d82 -> HSL: 192, 66%, 31% */
     --primary: 192 66% 36%;
     --primary-foreground: 210 40% 98%;
 
@@ -71,16 +76,92 @@
 @layer base {
   * {
     @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
+  
+  html {
+    @apply scroll-smooth;
+    height: -webkit-fill-available;
+  }
+
   body {
-    @apply bg-background text-foreground font-sans antialiased selection:bg-brand-subtle selection:text-brand;
+    @apply bg-background text-foreground font-sans antialiased overflow-x-hidden;
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
+
+  /* REGRA CRÍTICA: Prevenção de Zoom Automático no iOS Safari */
+  /* No iPhone (Safari), qualquer input/textarea/select com font-size < 16px provoca zoom automático */
+  @media screen and (max-width: 768px) {
+    input, 
+    textarea, 
+    select {
+      font-size: 16px !important;
+    }
+  }
+}
+
+/* Utilitários de Safe Area e Viewport Dinâmico (100dvh) */
+@layer utilities {
+  .min-h-dvh {
+    min-height: 100dvh;
+  }
+  .h-dvh {
+    height: 100dvh;
+  }
+  .max-h-dvh {
+    max-height: 100dvh;
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  .bottom-safe {
+    bottom: env(safe-area-inset-bottom, 0px);
+  }
+  
+  /* Touch target mínimo de 44x44px (Apple HIG) a 48x48px (Google Android) */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* Tipografia fluida escalável com clamp() */
+.heading-fluid-xl {
+  font-size: clamp(1.35rem, 4vw + 0.5rem, 2rem);
+  line-height: 1.2;
+}
+
+.heading-fluid-lg {
+  font-size: clamp(1.15rem, 2.5vw + 0.5rem, 1.5rem);
+  line-height: 1.25;
+}
+
+.text-fluid-base {
+  font-size: clamp(0.875rem, 1vw + 0.5rem, 1rem);
+  line-height: 1.5;
 }
 
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -93,8 +174,17 @@
   background: rgba(15, 76, 92, 0.3);
 }
 
-/* Focus rings with high accessibility */
+/* Focus acessível de alto contraste */
 *:focus-visible {
   outline: 2px solid #0F4C5C;
   outline-offset: 2px;
+}
+
+/* Scrollbar invisível para sliders horizontais no mobile */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
