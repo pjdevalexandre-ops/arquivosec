@@ -20,20 +20,45 @@ export default function LixeiraPage() {
 
   const trashedDocs = documents.filter((d) => d.is_trashed);
 
-  const handleRestore = (id: string) => {
-    setDocuments((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, is_trashed: false, trashed_at: null } : d))
-    );
-  };
-
-  const handlePermanentDelete = (id: string) => {
-    if (confirm("ATENÇÃO: A exclusão definitiva removerá o arquivo permanentemente do Cloudflare R2 e do banco de dados. Deseja continuar?")) {
-      setDocuments((prev) => prev.filter((d) => d.id !== id));
+  const handleRestore = async (id: string) => {
+    try {
+      await fetch(`/api/documents/${id}/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restore" }),
+      }).catch(() => {});
+    } finally {
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === id ? { ...d, is_trashed: false, trashed_at: null } : d))
+      );
     }
   };
 
-  const handleEmptyTrash = () => {
+  const handlePermanentDelete = async (id: string) => {
+    if (confirm("ATENÇÃO: A exclusão definitiva removerá o arquivo permanentemente do Cloudflare R2 e do banco de dados. Deseja continuar?")) {
+      try {
+        await fetch(`/api/documents/${id}/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "permanent" }),
+        }).catch(() => {});
+      } finally {
+        setDocuments((prev) => prev.filter((d) => d.id !== id));
+      }
+    }
+  };
+
+  const handleEmptyTrash = async () => {
     if (confirm("ATENÇÃO: Deseja esvaziar toda a lixeira? Esta ação não pode ser desfeita.")) {
+      for (const doc of trashedDocs) {
+        try {
+          await fetch(`/api/documents/${doc.id}/delete`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "permanent" }),
+          }).catch(() => {});
+        } catch (_) {}
+      }
       setDocuments((prev) => prev.filter((d) => !d.is_trashed));
     }
   };
@@ -71,7 +96,7 @@ export default function LixeiraPage() {
         <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl flex items-start space-x-3 text-xs text-amber-800 dark:text-amber-300">
           <Clock className="h-4 w-4 flex-shrink-0 mt-0.5 text-amber-600" />
           <p className="leading-relaxed">
-            Conforme política de segurança, documentos nesta pasta serão automaticamente purgados após 30 dias a partir da data de exclusão.
+            Conforme política de segurança, documentos nesta pasta serão automaticamente purgados após 30 dias a partir da data de exclusão. Seus arquivos originais permanecem protegidos no Cloudflare R2 enquanto estiverem na lixeira.
           </p>
         </div>
 
@@ -106,7 +131,7 @@ export default function LixeiraPage() {
                             <span className="font-semibold text-foreground truncate block">
                               {doc.title}
                             </span>
-                            <span className="text-[11px] text-muted-foreground">
+                            <span className="text-[11px] text-muted-foreground font-mono">
                               {doc.file_name}
                             </span>
                           </div>

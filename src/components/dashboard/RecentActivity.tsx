@@ -9,7 +9,8 @@ import {
   Trash2, 
   Star, 
   Tag as TagIcon,
-  Clock
+  Clock,
+  ShieldCheck
 } from "lucide-react";
 import { ActivityLog } from "@/types";
 import { formatRelativeTime } from "@/lib/utils";
@@ -45,40 +46,52 @@ export function RecentActivity({ activities }: RecentActivityProps) {
       <div className="p-4 border-b border-border/80 flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-foreground">Trilha de Auditoria</h3>
-          <p className="text-xs text-muted-foreground">Registro automático de operações e segurança</p>
+          <p className="text-xs text-muted-foreground">Registro automático de operações e conformidade LGPD</p>
         </div>
         <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400">
           Ativo
         </span>
       </div>
 
-      <div className="divide-y divide-border/60">
-        {activities.slice(0, 6).map((log) => {
-          const actionMeta = getActionBadge(log.action);
-          const Icon = actionMeta.icon;
+      {activities.length === 0 ? (
+        <div className="p-6 text-center space-y-2">
+          <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
+            <ShieldCheck className="h-5 w-5 text-emerald-600" />
+          </div>
+          <p className="text-xs font-semibold text-foreground">Auditoria pronta e ativa</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Todas as ações de envio, visualização, download e compartilhamento serão registradas com carimbo de tempo.
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-border/60">
+          {activities.slice(0, 6).map((log) => {
+            const actionMeta = getActionBadge(log.action);
+            const Icon = actionMeta.icon;
 
-          return (
-            <div key={log.id} className="p-3.5 flex items-start space-x-3 text-xs">
-              <div className={`p-1.5 rounded-lg ${actionMeta.color} flex-shrink-0 mt-0.5`}>
-                <Icon className="h-3.5 w-3.5" />
-              </div>
+            return (
+              <div key={log.id} className="p-3.5 flex items-start space-x-3 text-xs">
+                <div className={`p-1.5 rounded-lg ${actionMeta.color} flex-shrink-0 mt-0.5`}>
+                  <Icon className="h-3.5 w-3.5" />
+                </div>
 
-              <div className="min-w-0 flex-1">
-                <p className="text-foreground leading-snug">
-                  <span className="font-semibold">{actionMeta.label}: </span>
-                  <span className="text-muted-foreground">
-                    {log.document?.title || "Documento oficial"}
+                <div className="min-w-0 flex-1">
+                  <p className="text-foreground leading-snug">
+                    <span className="font-semibold">{actionMeta.label}: </span>
+                    <span className="text-muted-foreground">
+                      {log.document?.title || "Documento oficial"}
+                    </span>
+                  </p>
+
+                  <span className="text-[10px] text-muted-foreground mt-0.5 block font-mono">
+                    {formatRelativeTime(log.created_at)}
                   </span>
-                </p>
-
-                <span className="text-[10px] text-muted-foreground mt-0.5 block">
-                  {formatRelativeTime(log.created_at)}
-                </span>
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

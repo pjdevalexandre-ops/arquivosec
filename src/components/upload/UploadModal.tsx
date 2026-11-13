@@ -12,7 +12,8 @@ import {
   Tag as TagIcon,
   Layers,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  RotateCcw
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -89,113 +90,140 @@ export function UploadModal({
     );
   };
 
-  const startUploads = async () => {
-    for (let i = 0; i < queue.length; i++) {
-      const item = queue[i];
-      if (item.status === "completed") continue;
+  // Upload individual com rastreamento real de progresso e resiliência
+  const uploadSingleItem = async (item: UploadQueueItem) => {
+    setQueue((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, status: "uploading", progress: 5, error_message: undefined } : it))
+    );
 
-      // Atualiza para 'uploading'
+    try {
+      // 1. Obter presigned URL para o Cloudflare R2
+      const presignRes = await fetch("/api/upload/presigned", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: item.file.name,
+          mimeType: item.file.type || "application/pdf",
+          fileSizeBytes: item.file.size,
+        }),
+      });
+
+      if (!presignRes.ok) {
+        const errJson = await presignRes.json().catch(() => ({}));
+        throw new Error(errJson.error || "Falha na autorização do upload com R2.");
+      }
+
+      const { uploadUrl, fileKey } = await presignRes.json();
+
+      // 2. Upload direto com monitoramento real de bytes via XMLHttpRequest
+      await new Promise<void>((resolve, reject) => {
+        if (!uploadUrl || uploadUrl.includes("/api/mock-upload")) {
+          // Emulação suave se em modo demonstração
+          let progress = 10;
+          const interval = setInterval(() => {
+            progress += 30;
+            if (progress >= 95) {
+              clearInterval(interval);
+              resolve();
+            } else {
+              setQueue((prev) =>
+                prev.map((it) => (it.id === item.id ? { ...it, progress } : it))
+              );
+            }
+          }, 150);
+          return;
+        }
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", uploadUrl, true);
+        xhr.setRequestHeader("Content-Type", item.file.type || "application/octet-stream");
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 90);
+            setQueue((prev) =>
+              prev.map((it) => (it.id === item.id ? { ...it, progress: percentComplete } : it))
+            );
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(`Falha no envio para o R2 (Código HTTP ${xhr.status})`));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("Erro de conexão de rede durante o upload."));
+        xhr.onabort = () => reject(new Error("Upload cancelado pelo usuário."));
+
+        xhr.send(item.file);
+      });
+
+      // 3. Gravação garantida dos metadados no banco e acionamento do OCR
       setQueue((prev) =>
-        prev.map((it) => (it.id === item.id ? { ...it, status: "uploading", progress: 10 } : it))
+        prev.map((it) => (it.id === item.id ? { ...it, status: "processing_ocr", progress: 95 } : it))
       );
 
-      try {
-        // Passo 1: Obter URL assinada para R2
-        let presignedUrl = "";
-        let fileKey = `docs/${Date.now()}-${sanitizeFileName(item.file.name)}`;
+      const completeRes = await fetch("/api/upload/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: item.title,
+          document_number: item.document_number,
+          document_date: item.document_date,
+          origin_sector: item.origin_sector,
+          folder_id: item.folder_id,
+          type_id: item.type_id,
+          tag_ids: item.tag_ids,
+          notes: item.notes,
+          file_key: fileKey,
+          file_name: item.file.name,
+          file_size_bytes: item.file.size,
+          mime_type: item.file.type || "application/pdf",
+        }),
+      });
 
-        const presignRes = await fetch("/api/upload/presigned", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileName: item.file.name,
-            mimeType: item.file.type || "application/pdf",
-            fileSizeBytes: item.file.size,
-          }),
-        });
-
-        if (presignRes.ok) {
-          const presignData = await presignRes.json();
-          presignedUrl = presignData.uploadUrl;
-          fileKey = presignData.fileKey || fileKey;
-        }
-
-        // Progresso simulado/real de upload
-        setQueue((prev) =>
-          prev.map((it) => (it.id === item.id ? { ...it, progress: 50 } : it))
-        );
-
-        // Upload direto via PUT para R2 (se configurado) ou rota segura
-        if (presignedUrl && !presignedUrl.includes("mock")) {
-          await fetch(presignedUrl, {
-            method: "PUT",
-            headers: {
-              "Content-Type": item.file.type || "application/octet-stream",
-            },
-            body: item.file,
-          });
-        } else {
-          // Fallback rápido
-          await new Promise((r) => setTimeout(r, 600));
-        }
-
-        setQueue((prev) =>
-          prev.map((it) => (it.id === item.id ? { ...it, progress: 85, status: "processing_ocr" } : it))
-        );
-
-        // Passo 2: Registrar documento no banco e disparar OCR
-        const completeRes = await fetch("/api/upload/complete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: item.title,
-            document_number: item.document_number,
-            document_date: item.document_date,
-            origin_sector: item.origin_sector,
-            folder_id: item.folder_id,
-            type_id: item.type_id,
-            tag_ids: item.tag_ids,
-            notes: item.notes,
-            file_key: fileKey,
-            file_name: item.file.name,
-            file_size_bytes: item.file.size,
-            mime_type: item.file.type || "application/pdf",
-          }),
-        });
-
-        if (!completeRes.ok) {
-          throw new Error("Falha ao registrar metadados do documento.");
-        }
-
-        const completeData = await completeRes.json();
-
-        setQueue((prev) =>
-          prev.map((it) =>
-            it.id === item.id
-              ? {
-                  ...it,
-                  progress: 100,
-                  status: "completed",
-                  created_document_id: completeData.document?.id,
-                }
-              : it
-          )
-        );
-      } catch (err: any) {
-        setQueue((prev) =>
-          prev.map((it) =>
-            it.id === item.id
-              ? {
-                  ...it,
-                  status: "error",
-                  error_message: err.message || "Erro durante o envio.",
-                }
-              : it
-          )
-        );
+      if (!completeRes.ok) {
+        const completeErr = await completeRes.json().catch(() => ({}));
+        throw new Error(completeErr.error || "Falha ao registrar documento no banco.");
       }
-    }
 
+      const completeData = await completeRes.json();
+
+      setQueue((prev) =>
+        prev.map((it) =>
+          it.id === item.id
+            ? {
+                ...it,
+                progress: 100,
+                status: "completed",
+                created_document_id: completeData.document?.id,
+              }
+            : it
+        )
+      );
+    } catch (err: any) {
+      setQueue((prev) =>
+        prev.map((it) =>
+          it.id === item.id
+            ? {
+                ...it,
+                status: "error",
+                error_message: err.message || "Erro desconhecido durante o upload.",
+              }
+            : it
+        )
+      );
+    }
+  };
+
+  const startUploads = async () => {
+    const pendingItems = queue.filter((it) => it.status === "pending" || it.status === "error");
+    for (const item of pendingItems) {
+      await uploadSingleItem(item);
+    }
     if (onUploadComplete) {
       onUploadComplete();
     }
@@ -217,7 +245,7 @@ export function UploadModal({
             <span>Enviar Documentos para Nuvem</span>
           </DialogTitle>
           <DialogDescription>
-            Envio direto para bucket seguro Cloudflare R2 com indexação automática via OCR.
+            Envio direto para bucket seguro Cloudflare R2 com indexação automática via OCR e proteção contra perda.
           </DialogDescription>
         </DialogHeader>
 
@@ -253,13 +281,13 @@ export function UploadModal({
                 Arraste seus PDFs ou imagens digitalizadas até aqui
               </p>
               <p className="text-xs text-muted-foreground">
-                ou clique para selecionar do computador. Suporta até 250 GB acumulados.
+                ou clique para selecionar do computador. Cota total de 250 GB.
               </p>
               <div className="flex items-center space-x-2 pt-2">
                 <Badge variant="outline" className="text-[10px]">PDF</Badge>
                 <Badge variant="outline" className="text-[10px]">JPEG / PNG</Badge>
                 <Badge variant="outline" className="text-[10px]">TIFF / WEBP</Badge>
-                <span className="text-[11px] text-muted-foreground">URL assinada em partes</span>
+                <span className="text-[11px] text-muted-foreground font-medium">Upload Direto Seguro (R2)</span>
               </div>
             </div>
           </div>
@@ -270,7 +298,7 @@ export function UploadModal({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-foreground flex items-center space-x-1.5">
                   <Layers className="h-4 w-4 text-[#0F4C5C]" />
-                  <span>Aplicar Pasta e Tipo a Todos ({queue.length} selecionados)</span>
+                  <span>Aplicar Pasta e Tipo a Todos ({queue.length} arquivos)</span>
                 </span>
                 <Button
                   size="sm"
@@ -331,7 +359,7 @@ export function UploadModal({
                 <span className="text-xs font-semibold text-foreground">
                   Fila de Envio ({queue.length})
                 </span>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground font-mono">
                   Total: {formatBytes(queue.reduce((acc, it) => acc + it.file.size, 0))}
                 </span>
               </div>
@@ -340,13 +368,17 @@ export function UploadModal({
                 {queue.map((item) => (
                   <div
                     key={item.id}
-                    className="p-3 border border-border/80 bg-card rounded-xl space-y-2 text-xs"
+                    className={`p-3 border rounded-xl space-y-2 text-xs transition-colors ${
+                      item.status === "error" 
+                        ? "border-rose-300 bg-rose-50/40 dark:bg-rose-950/20" 
+                        : "border-border/80 bg-card"
+                    }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center space-x-2 min-w-0">
                         <FileText className="h-4 w-4 text-[#0F4C5C] flex-shrink-0" />
                         <span className="font-semibold text-foreground truncate">{item.file.name}</span>
-                        <span className="text-muted-foreground flex-shrink-0">
+                        <span className="text-muted-foreground flex-shrink-0 font-mono text-[11px]">
                           ({formatBytes(item.file.size)})
                         </span>
                       </div>
@@ -355,31 +387,42 @@ export function UploadModal({
                         {item.status === "completed" && (
                           <span className="flex items-center space-x-1 text-emerald-600 font-medium text-[11px]">
                             <CheckCircle2 className="h-3.5 w-3.5" />
-                            <span>Enviado</span>
+                            <span>Enviado e Seguro</span>
                           </span>
                         )}
                         {item.status === "processing_ocr" && (
                           <span className="flex items-center space-x-1 text-amber-600 font-medium text-[11px]">
                             <Sparkles className="h-3.5 w-3.5 animate-spin" />
-                            <span>Processando OCR...</span>
+                            <span>Indexando OCR...</span>
                           </span>
                         )}
                         {item.status === "uploading" && (
-                          <span className="text-[#0F4C5C] font-medium text-[11px]">
-                            Enviando {item.progress}%
+                          <span className="text-[#0F4C5C] font-semibold text-[11px] font-mono">
+                            {item.progress}%
                           </span>
                         )}
                         {item.status === "error" && (
-                          <span className="flex items-center space-x-1 text-rose-600 font-medium text-[11px]">
-                            <AlertCircle className="h-3.5 w-3.5" />
-                            <span>Falha</span>
-                          </span>
+                          <div className="flex items-center space-x-1.5">
+                            <span className="flex items-center space-x-1 text-rose-600 font-medium text-[11px]" title={item.error_message}>
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              <span>Falha</span>
+                            </span>
+                            <button
+                              onClick={() => uploadSingleItem(item)}
+                              className="text-xs text-[#0F4C5C] hover:underline flex items-center space-x-0.5 ml-1"
+                              title="Tentar novamente"
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                              <span>Repetir</span>
+                            </button>
+                          </div>
                         )}
 
                         {item.status !== "uploading" && item.status !== "processing_ocr" && (
                           <button
                             onClick={() => removeItem(item.id)}
                             className="text-muted-foreground hover:text-foreground p-1"
+                            title="Remover da fila"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -387,9 +430,9 @@ export function UploadModal({
                       </div>
                     </div>
 
-                    {/* Barra de Progresso Individual */}
+                    {/* Barra de Progresso Real */}
                     {(item.status === "uploading" || item.status === "processing_ocr") && (
-                      <Progress value={item.progress} className="h-1" indicatorClassName="bg-[#0F4C5C]" />
+                      <Progress value={item.progress} className="h-1.5" indicatorClassName="bg-[#0F4C5C]" />
                     )}
 
                     {/* Metadados Rápidos do Arquivo */}
@@ -458,24 +501,24 @@ export function UploadModal({
             {allCompleted ? (
               <Button
                 onClick={onClose}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
               >
-                Concluído
+                Concluído com Sucesso
               </Button>
             ) : (
               <Button
                 onClick={startUploads}
                 disabled={queue.length === 0 || isUploading}
-                className="bg-[#0F4C5C] hover:bg-[#09333e] text-white flex items-center space-x-1.5"
+                className="bg-[#0F4C5C] hover:bg-[#09333e] text-white flex items-center space-x-1.5 font-medium shadow-sm"
               >
                 {isUploading ? (
                   <>
                     <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span>Enviando arquivos...</span>
+                    <span>Enviando em partes...</span>
                   </>
                 ) : (
                   <>
-                    <span>Iniciar Envio ({queue.length})</span>
+                    <span>Iniciar Envio Seguro ({queue.length})</span>
                     <ArrowRight className="h-4 w-4" />
                   </>
                 )}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, Suspense } from "react";
+import React, { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DocumentFilterBar } from "@/components/documents/DocumentFilterBar";
@@ -15,14 +15,16 @@ import {
   mockTags 
 } from "@/lib/mock-data";
 import { DocumentItem } from "@/types";
-import { FileQuestion } from "lucide-react";
+import { FileQuestion, Upload } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 
 function DocumentosContent() {
   const searchParams = useSearchParams();
   const queryParam = searchParams.get("busca") || "";
 
   const [documents, setDocuments] = useState<DocumentItem[]>(initialDocs);
+  const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selectedFolderId, setSelectedFolderId] = useState<string>("");
   const [selectedTypeId, setSelectedTypeId] = useState<string>("");
@@ -30,6 +32,28 @@ function DocumentosContent() {
   const [sortBy, setSortBy] = useState<string>("recent");
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [sharingDoc, setSharingDoc] = useState<DocumentItem | null>(null);
+
+  // Busca documentos da API
+  const loadDocuments = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/documents");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.documents) {
+          setDocuments(data.documents);
+        }
+      }
+    } catch (err) {
+      console.warn("Usando estado local para documentos:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
 
   // Filtragem e busca
   const filteredDocuments = useMemo(() => {
@@ -102,36 +126,77 @@ function DocumentosContent() {
     }
   };
 
-  const handleToggleFavorite = (id: string) => {
+  const handleToggleFavorite = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    const newFav = !doc?.is_favorite;
+
     setDocuments((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, is_favorite: !d.is_favorite } : d))
+      prev.map((d) => (d.id === id ? { ...d, is_favorite: newFav } : d))
     );
+
+    try {
+      await fetch("/api/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, is_favorite: newFav }),
+      });
+    } catch (_) {}
   };
 
-  const handleDeleteDoc = (id: string) => {
+  const handleDeleteDoc = async (id: string) => {
     setDocuments((prev) =>
       prev.map((d) => (d.id === id ? { ...d, is_trashed: true, trashed_at: new Date().toISOString() } : d))
     );
+
+    try {
+      await fetch(`/api/documents/${id}/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "trash" }),
+      });
+    } catch (_) {}
   };
 
-  const handleBatchDelete = () => {
+  const handleBatchDelete = async () => {
+    const idsToDelete = [...selectedDocIds];
     setDocuments((prev) =>
       prev.map((d) =>
-        selectedDocIds.includes(d.id)
+        idsToDelete.includes(d.id)
           ? { ...d, is_trashed: true, trashed_at: new Date().toISOString() }
           : d
       )
     );
     setSelectedDocIds([]);
+
+    for (const id of idsToDelete) {
+      try {
+        await fetch(`/api/documents/${id}/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "trash" }),
+        });
+      } catch (_) {}
+    }
   };
 
-  const handleBatchFavorite = () => {
+  const handleBatchFavorite = async () => {
+    const idsToFav = [...selectedDocIds];
     setDocuments((prev) =>
       prev.map((d) =>
-        selectedDocIds.includes(d.id) ? { ...d, is_favorite: true } : d
+        idsToFav.includes(d.id) ? { ...d, is_favorite: true } : d
       )
     );
     setSelectedDocIds([]);
+
+    for (const id of idsToFav) {
+      try {
+        await fetch("/api/documents", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id, is_favorite: true }),
+        });
+      } catch (_) {}
+    }
   };
 
   return (
@@ -148,7 +213,7 @@ function DocumentosContent() {
                 Resultados da busca por: <strong>&ldquo;{queryParam}&rdquo;</strong>
               </span>
             ) : (
-              "Gerencie e localize processos, ofícios e contratos digitalizados."
+              "Gerencie e localize processos, ofícios, notas fiscais e contratos digitalizados."
             )}
           </p>
         </div>
@@ -178,9 +243,13 @@ function DocumentosContent() {
           <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
             <FileQuestion className="h-6 w-6" />
           </div>
-          <h3 className="font-semibold text-base text-foreground">Nenhum documento encontrado</h3>
+          <h3 className="font-semibold text-base text-foreground">
+            {queryParam ? "Nenhum documento encontrado para a busca" : "Nenhum documento cadastrado ainda"}
+          </h3>
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            Tente ajustar os filtros selecionados ou digite outros termos de busca.
+            {queryParam
+              ? "Tente verificar a ortografia ou buscar por outros termos como número de ofício ou setor."
+              : "Utilize o botão 'Enviar documentos' no topo da página para digitalizar e arquivar seus primeiros documentos."}
           </p>
         </div>
       ) : viewMode === "grid" ? (

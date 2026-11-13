@@ -1,6 +1,7 @@
 import { 
   PutObjectCommand, 
   GetObjectCommand, 
+  DeleteObjectCommand,
   CreateMultipartUploadCommand, 
   UploadPartCommand, 
   CompleteMultipartUploadCommand, 
@@ -11,7 +12,8 @@ import { r2Client, r2BucketName, isR2Configured } from "./client";
 
 /**
  * Gera URL assinada para envio direto do navegador (PUT)
- * Expira em 1 hora
+ * O arquivo vai direto do navegador para o Cloudflare R2
+ * Expira em 1 hora para dar tempo de uploads grandes
  */
 export async function getPresignedUploadUrl(
   fileKey: string,
@@ -19,7 +21,6 @@ export async function getPresignedUploadUrl(
   expiresInSeconds: number = 3600
 ): Promise<string> {
   if (!isR2Configured()) {
-    // Modo simulação para testes e desenvolvimento sem credenciais R2
     return `/api/mock-upload?key=${encodeURIComponent(fileKey)}`;
   }
 
@@ -34,7 +35,7 @@ export async function getPresignedUploadUrl(
 
 /**
  * Gera URL assinada para visualização/download seguro de arquivo privado
- * Expiração padrão curta: 15 minutos (900s)
+ * Expiração curta padrão: 15 minutos (900s) para máxima segurança
  */
 export async function getPresignedDownloadUrl(
   fileKey: string,
@@ -50,6 +51,28 @@ export async function getPresignedDownloadUrl(
   });
 
   return await getSignedUrl(r2Client, command, { expiresIn: expiresInSeconds });
+}
+
+/**
+ * Remove permanentemente o arquivo do Cloudflare R2
+ * ATENÇÃO: Utilizar SOMENTE no expurgo definitivo da Lixeira!
+ */
+export async function deleteObjectFromR2(fileKey: string): Promise<boolean> {
+  if (!isR2Configured()) {
+    return true;
+  }
+
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: r2BucketName,
+      Key: fileKey,
+    });
+    await r2Client.send(command);
+    return true;
+  } catch (error) {
+    console.error(`Erro ao deletar objeto ${fileKey} do R2:`, error);
+    return false;
+  }
 }
 
 /**
@@ -123,7 +146,7 @@ export async function completeMultipartUpload(
 }
 
 /**
- * Cancela um upload multipart em caso de erro
+ * Cancela um upload multipart em caso de erro para liberar recursos
  */
 export async function abortMultipartUpload(fileKey: string, uploadId: string) {
   if (!isR2Configured()) {
