@@ -1,29 +1,22 @@
--- ==============================================================================
--- ArquivoSec - PARTE 1: Extensões e Tabelas
--- Execute este bloco primeiro no SQL Editor do Supabase
--- ==============================================================================
-
+-- ArquivoSec - PARTE 1: Extensoes e Tabelas
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "unaccent";
 
--- Perfis de Usuário
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     full_name TEXT NOT NULL,
     email TEXT NOT NULL,
     avatar_url TEXT,
-    department TEXT DEFAULT 'Gabinete / Gestão Pública',
+    department TEXT DEFAULT 'Gabinete / Gestao Publica',
     storage_limit_bytes BIGINT NOT NULL DEFAULT 268435456000,
     storage_used_bytes BIGINT NOT NULL DEFAULT 0,
-    theme_preference TEXT NOT NULL DEFAULT 'light'
-        CHECK (theme_preference IN ('light', 'dark', 'system')),
+    theme_preference TEXT NOT NULL DEFAULT 'light' CHECK (theme_preference IN ('light','dark','system')),
     two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Tipos de Documentos
 CREATE TABLE IF NOT EXISTS public.document_types (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -36,7 +29,6 @@ CREATE TABLE IF NOT EXISTS public.document_types (
     CONSTRAINT unique_user_document_type UNIQUE (user_id, slug)
 );
 
--- Pastas
 CREATE TABLE IF NOT EXISTS public.folders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -47,7 +39,6 @@ CREATE TABLE IF NOT EXISTS public.folders (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Tags
 CREATE TABLE IF NOT EXISTS public.tags (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -57,7 +48,6 @@ CREATE TABLE IF NOT EXISTS public.tags (
     CONSTRAINT unique_user_tag UNIQUE (user_id, name)
 );
 
--- Documentos
 CREATE TABLE IF NOT EXISTS public.documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -74,8 +64,7 @@ CREATE TABLE IF NOT EXISTS public.documents (
     mime_type TEXT NOT NULL,
     file_extension TEXT NOT NULL,
     ocr_text TEXT,
-    ocr_status TEXT NOT NULL DEFAULT 'pending'
-        CHECK (ocr_status IN ('pending','processing','completed','failed','not_applicable')),
+    ocr_status TEXT NOT NULL DEFAULT 'pending' CHECK (ocr_status IN ('pending','processing','completed','failed','not_applicable')),
     ocr_processed_at TIMESTAMPTZ,
     is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
     is_trashed BOOLEAN NOT NULL DEFAULT FALSE,
@@ -85,7 +74,6 @@ CREATE TABLE IF NOT EXISTS public.documents (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Relacionamento Documentos <-> Tags
 CREATE TABLE IF NOT EXISTS public.document_tags (
     document_id UUID NOT NULL REFERENCES public.documents(id) ON DELETE CASCADE,
     tag_id UUID NOT NULL REFERENCES public.tags(id) ON DELETE CASCADE,
@@ -93,7 +81,6 @@ CREATE TABLE IF NOT EXISTS public.document_tags (
     PRIMARY KEY (document_id, tag_id)
 );
 
--- Links de Compartilhamento
 CREATE TABLE IF NOT EXISTS public.share_links (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID NOT NULL REFERENCES public.documents(id) ON DELETE CASCADE,
@@ -109,17 +96,11 @@ CREATE TABLE IF NOT EXISTS public.share_links (
     revoked_at TIMESTAMPTZ
 );
 
--- Logs de Auditoria
 CREATE TABLE IF NOT EXISTS public.activity_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     document_id UUID REFERENCES public.documents(id) ON DELETE SET NULL,
-    action TEXT NOT NULL
-        CHECK (action IN (
-            'upload','view','download','update','delete',
-            'restore','permanent_delete','share','revoke_share',
-            'favorite','unfavorite','move','tag'
-        )),
+    action TEXT NOT NULL CHECK (action IN ('upload','view','download','update','delete','restore','permanent_delete','share','revoke_share','favorite','unfavorite','move','tag')),
     details JSONB DEFAULT '{}'::jsonb,
     ip_address TEXT,
     user_agent TEXT,
