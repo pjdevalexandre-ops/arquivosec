@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { 
@@ -14,7 +14,8 @@ import {
   Sparkles, 
   Calendar, 
   Clock, 
-  Building2
+  Building2,
+  Loader2
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DocumentViewer } from "@/components/documents/DocumentViewer";
@@ -33,8 +34,8 @@ export default function DocumentDetailPage() {
   const fallbackDoc: DocumentItem = {
     id: docId,
     user_id: "gestor",
-    title: "Documento Oficial",
-    document_number: "OF-2024",
+    title: "Carregando documento...",
+    document_number: "",
     document_date: new Date().toISOString().split("T")[0],
     origin_sector: "Gabinete Geral",
     folder_id: null,
@@ -43,31 +44,81 @@ export default function DocumentDetailPage() {
     file_name: "documento.pdf",
     mime_type: "application/pdf",
     file_extension: "pdf",
-    file_size_bytes: 1024000,
+    file_size_bytes: 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     is_favorite: false,
     is_trashed: false,
-    ocr_status: "completed",
+    ocr_status: "processing",
     notes: "",
   };
 
-  const doc = mockDocuments.find((d) => d.id === docId) || fallbackDoc;
-
-  const [isFavorite, setIsFavorite] = useState(doc.is_favorite);
+  const initialDoc = mockDocuments.find((d) => d.id === docId) || fallbackDoc;
+  const [doc, setDoc] = useState<DocumentItem>(initialDoc);
+  const [fileUrl, setFileUrl] = useState<string | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isFavorite, setIsFavorite] = useState(initialDoc.is_favorite);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [notes, setNotes] = useState(doc.notes || "");
+  const [notes, setNotes] = useState(initialDoc.notes || "");
   const [activeTab, setActiveTab] = useState<"info" | "ocr" | "history">("info");
+
+  // Carrega documento real e URL assinada do Cloudflare R2
+  useEffect(() => {
+    async function fetchDoc() {
+      try {
+        setIsLoading(true);
+        const res = await fetch(`/api/documents/${docId}/view`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.document) {
+            setDoc(data.document);
+            setIsFavorite(data.document.is_favorite);
+            setNotes(data.document.notes || "");
+          }
+          if (data.url) {
+            setFileUrl(data.url);
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao carregar documento do R2:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    if (docId) {
+      fetchDoc();
+    }
+  }, [docId]);
 
   const badge = getFileTypeBadge(doc.mime_type, doc.file_extension);
 
   const handleDownload = () => {
-    alert(`Iniciando download seguro com URL assinada para: ${doc.file_name}`);
+    if (fileUrl) {
+      const a = document.createElement("a");
+      a.href = fileUrl;
+      a.download = doc.file_name;
+      a.target = "_blank";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      window.open(`/api/documents/${doc.id}/view`, "_blank");
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (confirm("Deseja enviar este documento para a lixeira?")) {
+      try {
+        await fetch(`/api/documents/${doc.id}/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "trash" }),
+        });
+      } catch (e) {
+        console.error(e);
+      }
       router.push("/documentos");
     }
   };
@@ -146,6 +197,7 @@ export default function DocumentDetailPage() {
           {/* Visualizador In-Page */}
           <div className="lg:col-span-8 space-y-3 sm:space-y-4">
             <DocumentViewer
+              url={fileUrl}
               fileName={doc.file_name}
               mimeType={doc.mime_type}
               ocrText={doc.ocr_text}

@@ -22,7 +22,12 @@ export async function GET(
 
       const { data: document, error } = await supabase
         .from("documents")
-        .select("*")
+        .select(`
+          *,
+          folder:folders(*),
+          type:document_types(*),
+          document_tags(tag:tags(*))
+        `)
         .eq("id", documentId)
         .eq("user_id", user.id)
         .single();
@@ -31,7 +36,7 @@ export async function GET(
         return NextResponse.json({ error: "Documento não encontrado." }, { status: 404 });
       }
 
-      // Gera URL assinada de 15 minutos
+      // Gera URL assinada de 15 minutos diretamente do Cloudflare R2
       const signedUrl = await getPresignedDownloadUrl(document.file_key, 900);
 
       // Registra visualização na auditoria
@@ -42,7 +47,13 @@ export async function GET(
         details: { mode: "signed_get_url" },
       });
 
-      return NextResponse.json({ url: signedUrl });
+      const formattedDoc = {
+        ...document,
+        tags: (document.document_tags || []).map((dt: any) => dt.tag).filter(Boolean),
+        file_url: signedUrl,
+      };
+
+      return NextResponse.json({ url: signedUrl, document: formattedDoc });
     }
 
     // Fallback de demonstração
