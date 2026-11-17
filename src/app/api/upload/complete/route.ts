@@ -3,6 +3,11 @@ import { createClientServer } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { simulateOcrProcessing } from "@/lib/ocr/processor";
 
+function isValidUuid(id?: string | null): boolean {
+  if (!id) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
@@ -21,7 +26,7 @@ export async function POST(req: NextRequest) {
       mime_type,
     } = payload;
 
-    const extension = file_name.split(".").pop()?.toLowerCase() || "pdf";
+    const extension = file_name?.split(".").pop()?.toLowerCase() || "pdf";
 
     // Simulação ou processamento inicial de OCR
     const initialOcrText = await simulateOcrProcessing(file_name, mime_type);
@@ -33,8 +38,16 @@ export async function POST(req: NextRequest) {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+        return NextResponse.json(
+          { error: "Sessão não identificada. Por favor, faça login novamente." },
+          { status: 401 }
+        );
       }
+
+      // Sanitiza UUIDs (ignora IDs de mock como 'f1', 't1' que causariam erro no Postgres)
+      const validFolderId = isValidUuid(folder_id) ? folder_id : null;
+      const validTypeId = isValidUuid(type_id) ? type_id : null;
+      const validTagIds = Array.isArray(tag_ids) ? tag_ids.filter((t: string) => isValidUuid(t)) : [];
 
       // 1. Inserir Documento
       const { data: document, error: docError } = await supabase
@@ -45,8 +58,8 @@ export async function POST(req: NextRequest) {
           document_number,
           document_date: document_date || null,
           origin_sector,
-          folder_id: folder_id || null,
-          type_id: type_id || null,
+          folder_id: validFolderId,
+          type_id: validTypeId,
           notes,
           file_key,
           file_name,
@@ -61,12 +74,16 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (docError) {
-        throw docError;
+        console.error("Erro no Supabase ao registrar documento:", docError);
+        return NextResponse.json(
+          { error: `Erro no banco: ${docError.message || "Falha ao gravar registro."}` },
+          { status: 400 }
+        );
       }
 
-      // 2. Inserir Tags
-      if (tag_ids.length > 0) {
-        const docTags = tag_ids.map((tagId: string) => ({
+      // 2. Inserir Tags válidas
+      if (validTagIds.length > 0) {
+        const docTags = validTagIds.map((tagId: string) => ({
           document_id: document.id,
           tag_id: tagId,
         }));

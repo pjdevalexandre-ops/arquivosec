@@ -96,12 +96,14 @@ export function UploadModal({
     );
 
     try {
+      const uploadMime = item.file.type || "application/pdf";
+
       const presignRes = await fetch("/api/upload/presigned", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fileName: item.file.name,
-          mimeType: item.file.type || "application/pdf",
+          mimeType: uploadMime,
           fileSizeBytes: item.file.size,
         }),
       });
@@ -132,7 +134,7 @@ export function UploadModal({
 
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", uploadUrl, true);
-        xhr.setRequestHeader("Content-Type", item.file.type || "application/octet-stream");
+        xhr.setRequestHeader("Content-Type", uploadMime);
 
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) {
@@ -147,11 +149,11 @@ export function UploadModal({
           if (xhr.status >= 200 && xhr.status < 300) {
             resolve();
           } else {
-            reject(new Error(`Falha no envio para o R2 (${xhr.status})`));
+            reject(new Error(`Falha no envio para o R2 (HTTP ${xhr.status}). Verifique a política de CORS do bucket.`));
           }
         };
 
-        xhr.onerror = () => reject(new Error("Erro de conexão de rede durante o upload."));
+        xhr.onerror = () => reject(new Error("Erro de conexão de rede ou bloqueio de CORS no Cloudflare R2."));
         xhr.onabort = () => reject(new Error("Upload cancelado pelo usuário."));
 
         xhr.send(item.file);
@@ -422,6 +424,12 @@ export function UploadModal({
 
                     {(item.status === "uploading" || item.status === "processing_ocr") && (
                       <Progress value={item.progress} className="h-1.5" indicatorClassName="bg-[#0F4C5C]" />
+                    )}
+
+                    {item.status === "error" && item.error_message && (
+                      <p className="text-[11px] text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 p-2 rounded-lg border border-rose-200 dark:border-rose-900 leading-tight">
+                        ⚠️ {item.error_message}
+                      </p>
                     )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-border/40">
