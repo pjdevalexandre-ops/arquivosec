@@ -320,11 +320,11 @@ export function TeamPresenceModal({
               return (
                 <div
                   key={m.id}
-                  className={`flex flex-col ${isMine ? "items-start" : "items-end"}`}
+                  className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}
                 >
                   <div className="flex items-center space-x-1.5 mb-1 px-1">
                     <span className={`text-[10px] font-bold ${isMine ? "text-[#0F4C5C]" : "text-foreground"}`}>
-                      {isMine ? "Você (Enviado)" : m.sender_name}
+                      {isMine ? "Você" : m.sender_name}
                     </span>
                     <span className="text-[9px] text-muted-foreground">
                       {formatRelativeTime(m.created_at)}
@@ -334,8 +334,8 @@ export function TeamPresenceModal({
                   <div
                     className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-3 text-xs leading-relaxed shadow-xs ${
                       isMine
-                        ? "bg-[#0F4C5C] text-white rounded-tl-none"
-                        : "bg-card border border-border text-foreground rounded-tr-none"
+                        ? "bg-[#0F4C5C] text-white rounded-tr-none"
+                        : "bg-card border border-border text-foreground rounded-tl-none"
                     }`}
                   >
                     <p className="whitespace-pre-wrap">{m.message}</p>
