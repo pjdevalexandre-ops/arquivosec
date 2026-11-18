@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   Folder as FolderIcon, 
@@ -9,7 +9,8 @@ import {
   Home, 
   FileText, 
   Edit2, 
-  Trash2 
+  Trash2,
+  Loader2
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { FolderTree } from "@/components/folders/FolderTree";
@@ -26,6 +27,7 @@ export default function PastasPage() {
   const [activeFolder, setActiveFolder] = useState<Folder>(mockFolders[0]);
   const [documents, setDocuments] = useState<DocumentItem[]>(mockDocuments);
   const [sharingDoc, setSharingDoc] = useState<DocumentItem | null>(null);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
 
   // Modal para criar/renomear pasta
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
@@ -33,9 +35,44 @@ export default function PastasPage() {
   const [folderName, setFolderName] = useState("");
   const [parentFolderId, setParentFolderId] = useState<string | null>(null);
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Carrega pastas e documentos reais do banco
+  const loadData = async () => {
+    try {
+      setIsLoadingFolders(true);
+      const [foldersRes, docsRes] = await Promise.all([
+        fetch("/api/folders"),
+        fetch("/api/documents"),
+      ]);
+
+      if (foldersRes.ok) {
+        const { folders: dbFolders } = await foldersRes.json();
+        if (dbFolders && dbFolders.length > 0) {
+          setFolders(dbFolders);
+          setActiveFolder(dbFolders[0]);
+        }
+      }
+
+      if (docsRes.ok) {
+        const { documents: dbDocs } = await docsRes.json();
+        if (dbDocs) {
+          setDocuments(dbDocs);
+        }
+      }
+    } catch (err) {
+      console.warn("Erro ao carregar dados de pastas:", err);
+    } finally {
+      setIsLoadingFolders(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const folderDocuments = documents.filter(
-    (d) => d.folder_id === activeFolder.id && !d.is_trashed
+    (d) => d.folder_id === activeFolder?.id && !d.is_trashed
   );
 
   const handleOpenCreateModal = (parentId: string | null = null) => {
@@ -52,39 +89,65 @@ export default function PastasPage() {
     setIsFolderModalOpen(true);
   };
 
-  const handleSaveFolder = () => {
+  const handleSaveFolder = async () => {
     if (!folderName.trim()) return;
+    setIsSaving(true);
 
-    if (modalMode === "create") {
-      const newFolder: Folder = {
-        id: `f-${Date.now()}`,
-        user_id: activeFolder.user_id,
-        parent_id: parentFolderId,
-        name: folderName.trim(),
-        color: "#0F4C5C",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        document_count: 0,
-      };
-      setFolders((prev) => [...prev, newFolder]);
-      setActiveFolder(newFolder);
-    } else if (editingFolder) {
-      setFolders((prev) =>
-        prev.map((f) => (f.id === editingFolder.id ? { ...f, name: folderName.trim() } : f))
-      );
-      if (activeFolder.id === editingFolder.id) {
-        setActiveFolder((prev) => ({ ...prev, name: folderName.trim() }));
+    try {
+      if (modalMode === "create") {
+        const res = await fetch("/api/folders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: folderName.trim(),
+            parent_id: parentFolderId,
+            color: "#0F4C5C",
+          }),
+        });
+        if (res.ok) {
+          const { folder: created } = await res.json();
+          setFolders((prev) => [...prev, created]);
+          setActiveFolder(created);
+        }
+      } else if (editingFolder) {
+        const res = await fetch("/api/folders", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingFolder.id,
+            name: folderName.trim(),
+          }),
+        });
+        if (res.ok) {
+          setFolders((prev) =>
+            prev.map((f) => (f.id === editingFolder.id ? { ...f, name: folderName.trim() } : f))
+          );
+          if (activeFolder?.id === editingFolder.id) {
+            setActiveFolder((prev) => ({ ...prev, name: folderName.trim() }));
+          }
+        }
       }
+    } catch (err) {
+      console.error("Erro ao salvar pasta:", err);
+    } finally {
+      setIsSaving(false);
+      setIsFolderModalOpen(false);
     }
-
-    setIsFolderModalOpen(false);
   };
 
-  const handleDeleteFolder = (folderId: string) => {
+  const handleDeleteFolder = async (folderId: string) => {
     if (confirm("Tem certeza que deseja excluir esta pasta? Documentos dentro dela serão mantidos sem pasta.")) {
-      setFolders((prev) => prev.filter((f) => f.id !== folderId));
-      if (activeFolder.id === folderId) {
-        setActiveFolder(folders[0]);
+      try {
+        await fetch(`/api/folders?id=${folderId}`, { method: "DELETE" });
+        setFolders((prev) => {
+          const remaining = prev.filter((f) => f.id !== folderId);
+          if (activeFolder?.id === folderId && remaining.length > 0) {
+            setActiveFolder(remaining[0]);
+          }
+          return remaining;
+        });
+      } catch (err) {
+        console.error("Erro ao excluir pasta:", err);
       }
     }
   };

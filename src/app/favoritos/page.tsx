@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Star } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DocumentCard } from "@/components/documents/DocumentCard";
@@ -12,12 +12,40 @@ export default function FavoritosPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>(mockDocuments);
   const [sharingDoc, setSharingDoc] = useState<DocumentItem | null>(null);
 
+  useEffect(() => {
+    async function loadFavorites() {
+      try {
+        const res = await fetch("/api/documents?favorite=true");
+        if (res.ok) {
+          const { documents: dbDocs } = await res.json();
+          if (dbDocs) setDocuments(dbDocs);
+        }
+      } catch (err) {
+        console.warn("Erro ao carregar favoritos:", err);
+      }
+    }
+    loadFavorites();
+  }, []);
+
   const favorites = documents.filter((d) => d.is_favorite && !d.is_trashed);
 
-  const handleToggleFavorite = (id: string) => {
+  const handleToggleFavorite = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    const newFav = !doc?.is_favorite;
+
     setDocuments((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, is_favorite: !d.is_favorite } : d))
+      prev.map((d) => (d.id === id ? { ...d, is_favorite: newFav } : d))
     );
+
+    try {
+      await fetch("/api/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, is_favorite: newFav }),
+      });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (

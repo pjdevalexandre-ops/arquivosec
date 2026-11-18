@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Trash2, 
   RotateCcw, 
@@ -16,6 +16,21 @@ import { formatBytes, formatDate } from "@/lib/utils";
 
 export default function LixeiraPage() {
   const [documents, setDocuments] = useState<DocumentItem[]>(mockDocuments);
+
+  useEffect(() => {
+    async function loadTrash() {
+      try {
+        const res = await fetch("/api/documents?trashed=true");
+        if (res.ok) {
+          const { documents: dbDocs } = await res.json();
+          if (dbDocs) setDocuments(dbDocs);
+        }
+      } catch (err) {
+        console.warn("Erro ao carregar lixeira:", err);
+      }
+    }
+    loadTrash();
+  }, []);
 
   const trashedDocs = documents.filter((d) => d.is_trashed);
 

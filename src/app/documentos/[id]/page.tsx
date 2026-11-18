@@ -60,8 +60,16 @@ export default function DocumentDetailPage() {
   const [isFavorite, setIsFavorite] = useState(initialDoc.is_favorite);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
   const [notes, setNotes] = useState(initialDoc.notes || "");
   const [activeTab, setActiveTab] = useState<"info" | "ocr" | "history">("info");
+
+  // Edição de Metadados Principais
+  const [isEditingMeta, setIsEditingMeta] = useState(false);
+  const [isSavingMeta, setIsSavingMeta] = useState(false);
+  const [editTitle, setEditTitle] = useState(initialDoc.title);
+  const [editDocNumber, setEditDocNumber] = useState(initialDoc.document_number || "");
+  const [editOriginSector, setEditOriginSector] = useState(initialDoc.origin_sector || "");
 
   // Carrega documento real e URL assinada do Cloudflare R2
   useEffect(() => {
@@ -75,6 +83,9 @@ export default function DocumentDetailPage() {
             setDoc(data.document);
             setIsFavorite(data.document.is_favorite);
             setNotes(data.document.notes || "");
+            setEditTitle(data.document.title);
+            setEditDocNumber(data.document.document_number || "");
+            setEditOriginSector(data.document.origin_sector || "");
           }
           if (data.url) {
             setFileUrl(data.url);
@@ -93,6 +104,70 @@ export default function DocumentDetailPage() {
   }, [docId]);
 
   const badge = getFileTypeBadge(doc.mime_type, doc.file_extension);
+
+  const handleToggleFavorite = async () => {
+    const next = !isFavorite;
+    setIsFavorite(next);
+    setDoc((prev) => ({ ...prev, is_favorite: next }));
+    try {
+      await fetch("/api/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: doc.id, is_favorite: next }),
+      });
+    } catch (e) {
+      console.error("Erro ao favoritar:", e);
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    setIsSavingNotes(true);
+    try {
+      const res = await fetch("/api/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: doc.id, notes }),
+      });
+      if (res.ok) {
+        setDoc((prev) => ({ ...prev, notes }));
+        setIsEditingNotes(false);
+      }
+    } catch (e) {
+      console.error("Erro ao salvar nota:", e);
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
+  const handleSaveMeta = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingMeta(true);
+    try {
+      const res = await fetch("/api/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: doc.id,
+          title: editTitle,
+          document_number: editDocNumber,
+          origin_sector: editOriginSector,
+        }),
+      });
+      if (res.ok) {
+        setDoc((prev) => ({
+          ...prev,
+          title: editTitle,
+          document_number: editDocNumber,
+          origin_sector: editOriginSector,
+        }));
+        setIsEditingMeta(false);
+      }
+    } catch (e) {
+      console.error("Erro ao salvar metadados:", e);
+    } finally {
+      setIsSavingMeta(false);
+    }
+  };
 
   const handleDownload = () => {
     if (fileUrl) {
@@ -155,7 +230,7 @@ export default function DocumentDetailPage() {
           {/* Botões de Ação com Touch Targets de 44px */}
           <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0">
             <button
-              onClick={() => setIsFavorite(!isFavorite)}
+              onClick={handleToggleFavorite}
               aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
               className="touch-target px-3 py-2 rounded-lg border border-border bg-background text-xs font-semibold flex items-center space-x-1.5 active:bg-muted"
             >
@@ -260,52 +335,126 @@ export default function DocumentDetailPage() {
             <div className="p-4 space-y-4 text-xs">
               {activeTab === "info" && (
                 <>
-                  <div className="space-y-3">
-                    <div>
-                      <span className="text-[11px] text-muted-foreground block">Tipo de Documento</span>
-                      <span className="font-semibold text-foreground text-sm">
-                        {doc.type?.name || "Ofício / Documento Oficial"}
-                      </span>
-                    </div>
+                  {isEditingMeta ? (
+                    <form onSubmit={handleSaveMeta} className="space-y-3 p-3 bg-muted/40 rounded-xl border border-border">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-foreground text-xs">Editar Informações</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingMeta(false)}
+                          className="text-[11px] text-muted-foreground hover:underline"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
 
-                    <div>
-                      <span className="text-[11px] text-muted-foreground block">Número de Registro</span>
-                      <span className="font-mono text-foreground font-medium text-xs sm:text-sm">
-                        {doc.document_number || "Não informado"}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <span className="text-[11px] text-muted-foreground block">Data do Documento</span>
-                        <span className="text-foreground">
-                          {formatDate(doc.document_date)}
+                        <label className="text-[10px] text-muted-foreground block mb-0.5 font-medium">Título Oficial</label>
+                        <input
+                          value={editTitle}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          className="w-full text-base sm:text-xs p-2 rounded-lg border border-input bg-background"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-0.5 font-medium">Número de Registro / Referência</label>
+                        <input
+                          value={editDocNumber}
+                          onChange={(e) => setEditDocNumber(e.target.value)}
+                          className="w-full text-base sm:text-xs p-2 rounded-lg border border-input bg-background"
+                          placeholder="Ex: OF-2024-001"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-0.5 font-medium">Origem / Órgão Expedidor</label>
+                        <input
+                          value={editOriginSector}
+                          onChange={(e) => setEditOriginSector(e.target.value)}
+                          className="w-full text-base sm:text-xs p-2 rounded-lg border border-input bg-background"
+                          placeholder="Ex: Gabinete Geral"
+                        />
+                      </div>
+
+                      <div className="pt-1 flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={isSavingMeta}
+                          className="min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#0F4C5C] text-white shadow-sm flex items-center space-x-1.5 active:scale-95 disabled:opacity-50"
+                        >
+                          {isSavingMeta ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>Salvando...</span>
+                            </>
+                          ) : (
+                            <span>Salvar Alterações</span>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between pb-1 border-b border-border/40">
+                        <span className="text-[11px] font-bold text-foreground">Metadados Oficiais</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingMeta(true)}
+                          className="text-[11px] text-[#0F4C5C] hover:underline flex items-center space-x-1 font-semibold"
+                        >
+                          <Edit3 className="h-3 w-3" />
+                          <span>Editar</span>
+                        </button>
+                      </div>
+
+                      <div>
+                        <span className="text-[11px] text-muted-foreground block">Tipo de Documento</span>
+                        <span className="font-semibold text-foreground text-sm">
+                          {doc.type?.name || "Ofício / Documento Oficial"}
                         </span>
                       </div>
+
                       <div>
-                        <span className="text-[11px] text-muted-foreground block">Tamanho</span>
-                        <span className="font-mono text-foreground">
-                          {formatBytes(doc.file_size_bytes)}
+                        <span className="text-[11px] text-muted-foreground block">Número de Registro</span>
+                        <span className="font-mono text-foreground font-medium text-xs sm:text-sm">
+                          {doc.document_number || "Não informado"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">Data do Documento</span>
+                          <span className="text-foreground">
+                            {formatDate(doc.document_date)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[11px] text-muted-foreground block">Tamanho</span>
+                          <span className="font-mono text-foreground">
+                            {formatBytes(doc.file_size_bytes)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[11px] text-muted-foreground block">Origem / Órgão Expedidor</span>
+                        <span className="text-foreground flex items-center space-x-1.5 mt-0.5">
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          <span>{doc.origin_sector || "Gabinete Geral"}</span>
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[11px] text-muted-foreground block">Pasta de Arquivamento</span>
+                        <span className="text-foreground flex items-center space-x-1.5 mt-0.5">
+                          <FolderInput className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          <span>{doc.folder?.name || "Gabinete do Gestor"}</span>
                         </span>
                       </div>
                     </div>
-
-                    <div>
-                      <span className="text-[11px] text-muted-foreground block">Origem / Órgão Expedidor</span>
-                      <span className="text-foreground flex items-center space-x-1.5 mt-0.5">
-                        <Building2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span>{doc.origin_sector || "Gabinete Geral"}</span>
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[11px] text-muted-foreground block">Pasta de Arquivamento</span>
-                      <span className="text-foreground flex items-center space-x-1.5 mt-0.5">
-                        <FolderInput className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span>{doc.folder?.name || "Gabinete do Gestor"}</span>
-                      </span>
-                    </div>
-                  </div>
+                  )}
 
                   {/* Observações com Edição Touch-Friendly */}
                   <div className="pt-3 border-t border-border/80">
@@ -329,10 +478,18 @@ export default function DocumentDetailPage() {
                           placeholder="Adicione anotações sobre tramitação ou auditoria..."
                         />
                         <button
-                          onClick={() => setIsEditingNotes(false)}
-                          className="min-h-[40px] px-3 rounded-lg text-xs font-semibold bg-[#0F4C5C] text-white active:scale-95"
+                          onClick={handleSaveNotes}
+                          disabled={isSavingNotes}
+                          className="min-h-[40px] px-3.5 rounded-lg text-xs font-semibold bg-[#0F4C5C] text-white active:scale-95 flex items-center space-x-1.5 disabled:opacity-50"
                         >
-                          Salvar Nota
+                          {isSavingNotes ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>Salvando...</span>
+                            </>
+                          ) : (
+                            <span>Salvar Nota</span>
+                          )}
                         </button>
                       </div>
                     ) : (

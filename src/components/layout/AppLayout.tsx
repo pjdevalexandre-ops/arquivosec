@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { UploadModal } from "@/components/upload/UploadModal";
 import { mockFolders, mockDocumentTypes, mockTags, mockProfile } from "@/lib/mock-data";
+import { Folder, DocumentType, Tag, UserProfile } from "@/types";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -15,12 +16,52 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  const [profile, setProfile] = useState<UserProfile>(mockProfile);
+  const [folders, setFolders] = useState<Folder[]>(mockFolders);
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>(mockDocumentTypes);
+  const [tags, setTags] = useState<Tag[]>(mockTags);
+
+  // Carrega dados dinâmicos do Supabase para toda a aplicação
+  useEffect(() => {
+    async function loadAppContext() {
+      try {
+        const [profRes, foldersRes, typesRes, tagsRes] = await Promise.all([
+          fetch("/api/profile"),
+          fetch("/api/folders"),
+          fetch("/api/types"),
+          fetch("/api/tags"),
+        ]);
+
+        if (profRes.ok) {
+          const { profile: dbProfile } = await profRes.json();
+          if (dbProfile) setProfile(dbProfile);
+        }
+        if (foldersRes.ok) {
+          const { folders: dbFolders } = await foldersRes.json();
+          if (dbFolders && dbFolders.length > 0) setFolders(dbFolders);
+        }
+        if (typesRes.ok) {
+          const { types: dbTypes } = await typesRes.json();
+          if (dbTypes && dbTypes.length > 0) setDocumentTypes(dbTypes);
+        }
+        if (tagsRes.ok) {
+          const { tags: dbTags } = await tagsRes.json();
+          if (dbTags && dbTags.length > 0) setTags(dbTags);
+        }
+      } catch (err) {
+        console.warn("Aviso ao carregar contexto dinâmico:", err);
+      }
+    }
+
+    loadAppContext();
+  }, []);
+
   return (
     <div className="min-h-[100dvh] flex flex-col md:flex-row bg-background text-foreground max-w-full overflow-x-hidden">
       {/* Sidebar Desktop */}
       <Sidebar
-        storageUsed={mockProfile.storage_used_bytes}
-        storageLimit={mockProfile.storage_limit_bytes}
+        storageUsed={profile.storage_used_bytes}
+        storageLimit={profile.storage_limit_bytes}
         onOpenUpload={() => setIsUploadOpen(true)}
         className="hidden md:flex sticky top-0"
       />
@@ -33,8 +74,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             onClick={() => setIsMobileMenuOpen(false)}
           />
           <Sidebar
-            storageUsed={mockProfile.storage_used_bytes}
-            storageLimit={mockProfile.storage_limit_bytes}
+            storageUsed={profile.storage_used_bytes}
+            storageLimit={profile.storage_limit_bytes}
             onOpenUpload={() => {
               setIsMobileMenuOpen(false);
               setIsUploadOpen(true);
@@ -48,7 +89,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 max-w-full">
         <Topbar
-          userProfile={mockProfile}
+          userProfile={profile}
           onOpenUpload={() => setIsUploadOpen(true)}
           onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           isMobileMenuOpen={isMobileMenuOpen}
@@ -67,11 +108,12 @@ export function AppLayout({ children }: AppLayoutProps) {
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        folders={mockFolders}
-        documentTypes={mockDocumentTypes}
-        tags={mockTags}
+        folders={folders}
+        documentTypes={documentTypes}
+        tags={tags}
         onUploadComplete={() => {
-          // recarrega lista
+          // Dispara recarregamento
+          window.location.reload();
         }}
       />
     </div>

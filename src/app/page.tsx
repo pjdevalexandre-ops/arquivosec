@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { StorageOverview } from "@/components/dashboard/StorageOverview";
 import { QuickFavorites } from "@/components/dashboard/QuickFavorites";
@@ -12,8 +12,45 @@ import {
   mockDocumentTypes, 
   mockActivityLogs 
 } from "@/lib/mock-data";
+import { DocumentItem, UserProfile, DocumentType, ActivityLog } from "@/types";
 
 export default function DashboardPage() {
+  const [profile, setProfile] = useState<UserProfile>(mockProfile);
+  const [documents, setDocuments] = useState<DocumentItem[]>(mockDocuments);
+  const [types, setTypes] = useState<DocumentType[]>(mockDocumentTypes);
+  const [activities, setActivities] = useState<ActivityLog[]>(mockActivityLogs);
+
+  useEffect(() => {
+    async function loadDashboardData() {
+      try {
+        const [docsRes, profRes, typesRes] = await Promise.all([
+          fetch("/api/documents"),
+          fetch("/api/profile"),
+          fetch("/api/types"),
+        ]);
+
+        if (docsRes.ok) {
+          const { documents: dbDocs } = await docsRes.json();
+          if (dbDocs) setDocuments(dbDocs);
+        }
+
+        if (profRes.ok) {
+          const { profile: dbProfile } = await profRes.json();
+          if (dbProfile) setProfile(dbProfile);
+        }
+
+        if (typesRes.ok) {
+          const { types: dbTypes } = await typesRes.json();
+          if (dbTypes && dbTypes.length > 0) setTypes(dbTypes);
+        }
+      } catch (err) {
+        console.warn("Aviso ao carregar dados do painel:", err);
+      }
+    }
+
+    loadDashboardData();
+  }, []);
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -29,22 +66,22 @@ export default function DashboardPage() {
 
         {/* 1. Medidor de Armazenamento de 250 GB */}
         <StorageOverview
-          storageUsedBytes={mockProfile.storage_used_bytes}
-          storageLimitBytes={mockProfile.storage_limit_bytes}
-          totalDocuments={mockDocuments.length}
-          documentTypes={mockDocumentTypes}
+          storageUsedBytes={profile.storage_used_bytes}
+          storageLimitBytes={profile.storage_limit_bytes}
+          totalDocuments={documents.length}
+          documentTypes={types}
         />
 
         {/* 2. Acesso Rápido a Favoritos */}
-        <QuickFavorites documents={mockDocuments} />
+        <QuickFavorites documents={documents} />
 
         {/* 3. Documentos Recentes e Trilha de Auditoria */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <RecentDocuments documents={mockDocuments} />
+            <RecentDocuments documents={documents} />
           </div>
           <div>
-            <RecentActivity activities={mockActivityLogs} />
+            <RecentActivity activities={activities} />
           </div>
         </div>
       </div>

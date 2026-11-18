@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   Share2, 
@@ -12,7 +12,8 @@ import {
   Copy, 
   Check, 
   FileText,
-  AlertCircle 
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,26 @@ import { formatDateTime } from "@/lib/utils";
 export default function CompartilhadosPage() {
   const [links, setLinks] = useState<ShareLink[]>(mockShareLinks);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadShareLinks() {
+      try {
+        setIsLoading(true);
+        const res = await fetch("/api/share");
+        if (res.ok) {
+          const { links: dbLinks } = await res.json();
+          if (dbLinks) setLinks(dbLinks);
+        }
+      } catch (err) {
+        console.warn("Erro ao carregar links:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadShareLinks();
+  }, []);
 
   const handleCopyLink = (token: string) => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -33,11 +54,16 @@ export default function CompartilhadosPage() {
     setTimeout(() => setCopiedToken(null), 2000);
   };
 
-  const handleRevokeLink = (id: string) => {
+  const handleRevokeLink = async (id: string) => {
     if (confirm("Deseja realmente revogar este link? O acesso público será cancelado imediatamente.")) {
       setLinks((prev) =>
         prev.map((l) => (l.id === id ? { ...l, is_active: false } : l))
       );
+      try {
+        await fetch(`/api/share?id=${id}`, { method: "DELETE" });
+      } catch (e) {
+        console.error("Erro ao revogar:", e);
+      }
     }
   };
 
