@@ -15,11 +15,15 @@ import {
   SlidersHorizontal,
   Folder,
   Trash2,
-  Share2
+  Share2,
+  Users,
+  MessageSquare,
+  Bell
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { UserProfile } from "@/types";
+import { TeamPresenceModal } from "./TeamPresenceModal";
 
 interface TopbarProps {
   userProfile?: UserProfile;
@@ -39,6 +43,57 @@ export function Topbar({
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
+
+  // Estados para Equipe & Mensagens no Cabeçalho
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [onlineCount, setOnlineCount] = useState(1);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+  const [incomingNotification, setIncomingNotification] = useState<{ sender: string; text: string } | null>(null);
+
+  // Monitoramento de presença de usuários e mensagens não lidas
+  useEffect(() => {
+    let lastUnread = 0;
+
+    const checkTeamAndMessages = async () => {
+      try {
+        const [usersRes, messagesRes] = await Promise.all([
+          fetch("/api/admin/users"),
+          fetch("/api/messages"),
+        ]);
+
+        if (usersRes.ok) {
+          const uData = await usersRes.json();
+          if (uData.users) {
+            const count = uData.users.filter((u: any) => u.is_online).length;
+            setOnlineCount(Math.max(1, count));
+          }
+        }
+
+        if (messagesRes.ok) {
+          const mData = await messagesRes.json();
+          const currentUnread = mData.unreadCount || 0;
+          setUnreadMessagesCount(currentUnread);
+
+          // Se recebeu nova mensagem, dispara alerta popup no topo
+          if (currentUnread > lastUnread && mData.messages && mData.messages.length > 0) {
+            const latest = mData.messages[0];
+            if (!latest.is_read) {
+              setIncomingNotification({
+                sender: latest.sender_name || "Colega de Trabalho",
+                text: latest.message,
+              });
+              setTimeout(() => setIncomingNotification(null), 6000);
+            }
+          }
+          lastUnread = currentUnread;
+        }
+      } catch (_) {}
+    };
+
+    checkTeamAndMessages();
+    const interval = setInterval(checkTeamAndMessages, 20000); // atualiza a cada 20s
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -174,6 +229,31 @@ export function Topbar({
               </Button>
             )}
 
+            {/* Botão Equipe & Presença Online com Indicador Verde */}
+            <button
+              onClick={() => setIsTeamModalOpen(true)}
+              aria-label="Equipe e Usuários Online"
+              className="touch-target relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/70 transition-colors flex items-center space-x-1"
+              title="Equipe & Presença Online"
+            >
+              <div className="relative flex items-center justify-center">
+                <Users className="h-5 w-5" />
+                {/* Indicador Online Verde com Ping */}
+                <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 ring-1 ring-card" />
+                </span>
+              </div>
+              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono hidden xs:inline-block">
+                {onlineCount}
+              </span>
+              {unreadMessagesCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 px-1.5 py-0.2 bg-rose-500 text-white text-[9px] font-bold rounded-full animate-bounce shadow-sm">
+                  {unreadMessagesCount}
+                </span>
+              )}
+            </button>
+
             {/* Alternador de Tema */}
             <button
               onClick={toggleTheme}
@@ -280,6 +360,47 @@ export function Topbar({
           </div>
         </>
       )}
+      {/* Toast Flutuante de Notificação no Site quando chega mensagem */}
+      {incomingNotification && (
+        <div 
+          onClick={() => {
+            setIncomingNotification(null);
+            setIsTeamModalOpen(true);
+          }}
+          className="fixed top-16 right-4 sm:right-6 z-50 max-w-sm w-full bg-card border-2 border-[#0F4C5C] shadow-2xl rounded-2xl p-3.5 flex items-start space-x-3 cursor-pointer animate-in slide-in-from-top duration-200"
+        >
+          <div className="h-9 w-9 rounded-xl bg-[#0F4C5C] text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+            <MessageSquare className="h-4 w-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-foreground truncate">
+                Recado de {incomingNotification.sender}
+              </span>
+              <span className="text-[10px] text-[#0F4C5C] font-semibold">Agora</span>
+            </div>
+            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 leading-tight">
+              {incomingNotification.text}
+            </p>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIncomingNotification(null);
+            }}
+            className="text-muted-foreground hover:text-foreground p-1"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Modal de Equipe, Presença e Envio de Mensagens */}
+      <TeamPresenceModal
+        isOpen={isTeamModalOpen}
+        onClose={() => setIsTeamModalOpen(false)}
+        currentUserId={profile.email}
+      />
     </header>
   );
 }

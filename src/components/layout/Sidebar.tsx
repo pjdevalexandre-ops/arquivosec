@@ -39,14 +39,13 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
 
-  const navigation = [
+  const navigation: { name: string; href: string; icon: any; badge?: string }[] = [
     { name: "Início", href: "/", icon: Home },
     { name: "Documentos", href: "/documentos", icon: FileText },
     { name: "Pastas", href: "/pastas", icon: Folder },
     { name: "Favoritos", href: "/favoritos", icon: Star },
     { name: "Compartilhados", href: "/compartilhados", icon: Share2 },
     { name: "Lixeira", href: "/lixeira", icon: Trash2 },
-    ...(role === "admin" ? [{ name: "Equipe & Online", href: "/usuarios", icon: Users, badge: "ADM" }] : []),
     { name: "Configurações", href: "/configuracoes", icon: Settings },
   ];
 
