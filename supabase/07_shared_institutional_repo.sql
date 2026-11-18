@@ -82,3 +82,29 @@ CREATE POLICY "doc_tags_insert" ON public.document_tags
 DROP POLICY IF EXISTS "doc_tags_delete" ON public.document_tags;
 CREATE POLICY "doc_tags_delete" ON public.document_tags
     FOR DELETE USING (auth.role() = 'authenticated');
+
+-- 5. Atualização Automática do Armazenamento Consolidado do Órgão (250 GB Compartilhado)
+CREATE OR REPLACE FUNCTION public.update_user_storage_usage()
+RETURNS TRIGGER AS $$
+DECLARE
+    total_bytes BIGINT;
+BEGIN
+    SELECT COALESCE(SUM(file_size_bytes), 0)
+    INTO total_bytes
+    FROM public.documents
+    WHERE is_trashed = FALSE;
+
+    UPDATE public.profiles
+    SET storage_used_bytes = total_bytes,
+        updated_at = now();
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_update_user_storage ON public.documents;
+CREATE TRIGGER trg_update_user_storage
+    AFTER INSERT OR UPDATE OR DELETE
+    ON public.documents
+    FOR EACH ROW EXECUTE FUNCTION public.update_user_storage_usage();
+

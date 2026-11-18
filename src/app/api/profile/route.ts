@@ -53,7 +53,24 @@ export async function GET() {
       userProfile = { ...profile, role: "admin" };
     }
 
-    return NextResponse.json({ profile: userProfile });
+    // Calcula o consumo de armazenamento consolidado de todo o acervo institucional (250 GB compartilhado)
+    const { data: storageSum } = await supabase
+      .from("documents")
+      .select("file_size_bytes")
+      .eq("is_trashed", false);
+
+    const totalUsedBytes = (storageSum || []).reduce(
+      (acc: number, doc: any) => acc + (doc.file_size_bytes || 0),
+      0
+    );
+
+    const consolidatedProfile = {
+      ...userProfile,
+      storage_used_bytes: totalUsedBytes,
+      storage_limit_bytes: userProfile?.storage_limit_bytes || 268435456000,
+    };
+
+    return NextResponse.json({ profile: consolidatedProfile });
   } catch (error: any) {
     console.error("Erro ao obter perfil:", error);
     return NextResponse.json(
