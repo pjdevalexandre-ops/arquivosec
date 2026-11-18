@@ -16,7 +16,7 @@ const defaultProfile: UserProfile = {
   full_name: "Servidor Público",
   email: "",
   department: "Gabinete / Gestão Pública",
-  role: "gestor",
+  role: "admin",
   storage_limit_bytes: 268435456000,
   storage_used_bytes: 0,
   theme_preference: "system",

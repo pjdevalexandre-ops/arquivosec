@@ -32,21 +32,28 @@ export async function GET() {
       throw error;
     }
 
+    let userProfile = profile;
+
     if (!profile) {
-      // Cria perfil sob demanda se ainda não existir
+      // Cria perfil sob demanda se ainda não existir com perfil admin
       const newProfile = {
         id: user.id,
-        full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "Gestor",
+        full_name: user.user_metadata?.full_name || user.email?.split("@")[0] || "Administrador",
         email: user.email || "",
         department: "Gabinete / Gestão Pública",
+        role: "admin",
         storage_limit_bytes: 268435456000,
         storage_used_bytes: 0,
       };
       await supabase.from("profiles").insert(newProfile);
-      return NextResponse.json({ profile: newProfile });
+      userProfile = newProfile;
+    } else if (profile.role !== "admin") {
+      // Promove o perfil para admin automaticamente
+      await supabase.from("profiles").update({ role: "admin" }).eq("id", user.id);
+      userProfile = { ...profile, role: "admin" };
     }
 
-    return NextResponse.json({ profile });
+    return NextResponse.json({ profile: userProfile });
   } catch (error: any) {
     console.error("Erro ao obter perfil:", error);
     return NextResponse.json(
