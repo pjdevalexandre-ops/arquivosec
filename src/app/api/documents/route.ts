@@ -35,7 +35,6 @@ export async function GET(req: NextRequest) {
         type:document_types(*),
         document_tags(tag:tags(*))
       `)
-      .eq("user_id", user.id)
       .eq("is_trashed", isTrashed)
       .order("created_at", { ascending: false });
 
@@ -113,8 +112,7 @@ export async function PATCH(req: NextRequest) {
       const { error } = await supabase
         .from("documents")
         .update(updateData)
-        .in("id", ids)
-        .eq("user_id", user.id);
+        .in("id", ids);
 
       if (error) throw error;
 
@@ -126,7 +124,6 @@ export async function PATCH(req: NextRequest) {
       .from("documents")
       .update(updateData)
       .eq("id", id)
-      .eq("user_id", user.id)
       .select()
       .single();
 
@@ -179,8 +176,7 @@ export async function DELETE(req: NextRequest) {
           is_trashed: true,
           trashed_at: new Date().toISOString(),
         })
-        .in("id", ids)
-        .eq("user_id", user.id);
+        .in("id", ids);
 
       if (error) throw error;
 

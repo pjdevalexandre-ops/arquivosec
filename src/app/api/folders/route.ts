@@ -25,7 +25,6 @@ export async function GET() {
     const { data: folders, error } = await supabase
       .from("folders")
       .select("*, documents:documents(count)")
-      .eq("user_id", user.id)
       .order("name", { ascending: true });
 
     if (error) {
@@ -73,11 +72,10 @@ export async function POST(req: NextRequest) {
 
     const cleanName = name.trim();
 
-    // Validação de duplicidade no mesmo nível
+    // Validação de duplicidade no mesmo nível no acervo do órgão
     let duplicateCheck = supabase
       .from("folders")
       .select("id")
-      .eq("user_id", user.id)
       .ilike("name", cleanName);
 
     if (parent_id) {
@@ -155,7 +153,6 @@ export async function PATCH(req: NextRequest) {
       .from("folders")
       .update(updateData)
       .eq("id", id)
-      .eq("user_id", user.id)
       .select()
       .single();
 
@@ -202,14 +199,12 @@ export async function DELETE(req: NextRequest) {
     await supabase
       .from("documents")
       .update({ folder_id: null })
-      .eq("folder_id", id)
-      .eq("user_id", user.id);
+      .eq("folder_id", id);
 
     const { error } = await supabase
       .from("folders")
       .delete()
-      .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("id", id);
 
     if (error) {
       throw error;

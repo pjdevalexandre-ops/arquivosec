@@ -29,7 +29,6 @@ export async function GET(
           document_tags(tag:tags(*))
         `)
         .eq("id", documentId)
-        .eq("user_id", user.id)
         .single();
 
       if (error || !document) {

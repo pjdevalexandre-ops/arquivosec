@@ -25,7 +25,6 @@ export async function GET() {
     const { data: types, error } = await supabase
       .from("document_types")
       .select("*")
-      .or(`user_id.eq.${user.id},is_default.eq.true`)
       .order("name", { ascending: true });
 
     if (error) {

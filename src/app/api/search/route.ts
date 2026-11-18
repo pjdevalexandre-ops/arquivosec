@@ -59,7 +59,6 @@ export async function GET(req: NextRequest) {
         type:document_types(*),
         document_tags(tag:tags(*))
       `)
-      .eq("user_id", user.id)
       .eq("is_trashed", false);
 
     if (folderId) {

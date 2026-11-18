@@ -25,7 +25,6 @@ export async function GET() {
     const { data: tags, error } = await supabase
       .from("tags")
       .select("*")
-      .eq("user_id", user.id)
       .order("name", { ascending: true });
 
     if (error) {
