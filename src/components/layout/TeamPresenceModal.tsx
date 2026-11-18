@@ -33,12 +33,14 @@ interface TeamPresenceModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUserId?: string;
+  currentUserEmail?: string;
 }
 
 export function TeamPresenceModal({
   isOpen,
   onClose,
   currentUserId,
+  currentUserEmail,
 }: TeamPresenceModalProps) {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [messages, setMessages] = useState<InternalMessage[]>([]);
@@ -52,6 +54,12 @@ export function TeamPresenceModal({
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const isUserMe = (u: UserProfile) => {
+    if (currentUserId && (u.id === currentUserId || u.email === currentUserId)) return true;
+    if (currentUserEmail && u.email?.toLowerCase() === currentUserEmail.toLowerCase()) return true;
+    return false;
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -69,13 +77,11 @@ export function TeamPresenceModal({
         const uData = await usersRes.json();
         if (uData.users) {
           setUsers(uData.users);
-          // Se não houver destinatário selecionado, pré-seleciona o primeiro que não seja eu
+          // Pré-seleciona apenas o primeiro usuário que NÃO seja eu
           setSelectedUser((prev) => {
-            if (prev) return prev;
-            const otherUser = uData.users.find(
-              (u: UserProfile) => u.id !== currentUserId && u.email !== currentUserId
-            );
-            return otherUser || uData.users[0] || null;
+            if (prev && !isUserMe(prev)) return prev;
+            const otherUser = uData.users.find((u: UserProfile) => !isUserMe(u));
+            return otherUser || null;
           });
         }
       }
@@ -115,6 +121,11 @@ export function TeamPresenceModal({
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageText.trim() || !selectedUser) return;
+
+    if (isUserMe(selectedUser)) {
+      setStatusFeedback("Não é permitido enviar mensagem para si mesmo.");
+      return;
+    }
 
     const textToSend = messageText.trim();
     setMessageText("");
@@ -206,16 +217,46 @@ export function TeamPresenceModal({
           <div className="flex items-center space-x-2 overflow-x-auto pb-1 scrollbar-thin">
             {users.map((u) => {
               const isSelected = selectedUser?.id === u.id;
-              const isMe = currentUserId && (u.id === currentUserId || u.email === currentUserId);
+              const isMe = isUserMe(u);
+
+              if (isMe) {
+                return (
+                  <div
+                    key={u.id}
+                    className="flex items-center space-x-2 px-3 py-1.5 rounded-xl border border-dashed border-border bg-muted/40 text-muted-foreground opacity-70 flex-shrink-0 cursor-not-allowed select-none"
+                    title="Seu perfil (não é possível enviar mensagem para si mesmo)"
+                  >
+                    <div className="relative">
+                      <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center font-bold text-[10px] text-muted-foreground">
+                        {u.full_name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .slice(0, 2)
+                          .join("")
+                          .toUpperCase()}
+                      </div>
+                      <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-1 ring-card" />
+                    </div>
+                    <div className="text-left leading-tight">
+                      <p className="text-xs font-semibold truncate max-w-[100px]">
+                        {u.full_name.split(" ")[0]} (Você)
+                      </p>
+                      <p className="text-[9px] text-muted-foreground truncate">
+                        Online
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <button
                   key={u.id}
                   type="button"
                   onClick={() => setSelectedUser(u)}
-                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border transition-all flex-shrink-0 select-none ${
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-xl border transition-all flex-shrink-0 select-none cursor-pointer ${
                     isSelected
-                      ? "bg-[#0F4C5C] text-white border-[#0F4C5C] shadow-sm scale-102"
+                      ? "bg-[#0F4C5C] text-white border-[#0F4C5C] shadow-sm scale-102 ring-2 ring-[#0F4C5C]/20"
                       : "bg-background hover:bg-muted/60 text-foreground border-border"
                   }`}
                 >
@@ -243,7 +284,7 @@ export function TeamPresenceModal({
                   {/* Nome e Status */}
                   <div className="text-left leading-tight">
                     <p className="text-xs font-semibold truncate max-w-[110px]">
-                      {u.full_name.split(" ")[0]} {isMe ? "(Você)" : ""}
+                      {u.full_name.split(" ")[0]}
                     </p>
                     <p
                       className={`text-[9px] truncate max-w-[110px] ${
@@ -273,16 +314,17 @@ export function TeamPresenceModal({
             messages.map((m) => {
               const isMine =
                 m.sender_name === "Você" ||
-                (currentUserId && (m.sender_id === currentUserId || m.sender_name.includes(currentUserId)));
+                (currentUserId && m.sender_id === currentUserId) ||
+                (currentUserEmail && (m.sender_name.toLowerCase() === currentUserEmail.toLowerCase() || m.sender_name.includes(currentUserEmail)));
 
               return (
                 <div
                   key={m.id}
-                  className={`flex flex-col ${isMine ? "items-end" : "items-start"}`}
+                  className={`flex flex-col ${isMine ? "items-start" : "items-end"}`}
                 >
                   <div className="flex items-center space-x-1.5 mb-1 px-1">
-                    <span className="text-[10px] font-bold text-foreground">
-                      {isMine ? "Você" : m.sender_name}
+                    <span className={`text-[10px] font-bold ${isMine ? "text-[#0F4C5C]" : "text-foreground"}`}>
+                      {isMine ? "Você (Enviado)" : m.sender_name}
                     </span>
                     <span className="text-[9px] text-muted-foreground">
                       {formatRelativeTime(m.created_at)}
@@ -292,8 +334,8 @@ export function TeamPresenceModal({
                   <div
                     className={`max-w-[85%] sm:max-w-[75%] rounded-2xl p-3 text-xs leading-relaxed shadow-xs ${
                       isMine
-                        ? "bg-[#0F4C5C] text-white rounded-tr-none"
-                        : "bg-card border border-border text-foreground rounded-tl-none"
+                        ? "bg-[#0F4C5C] text-white rounded-tl-none"
+                        : "bg-card border border-border text-foreground rounded-tr-none"
                     }`}
                   >
                     <p className="whitespace-pre-wrap">{m.message}</p>

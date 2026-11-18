@@ -139,6 +139,7 @@ export function Topbar({
   }, []);
 
   const profile = userProfile || {
+    id: "",
     full_name: "Gestor Público",
     email: "gestor@orgao.gov.br",
     department: "Gabinete / Gestão Pública",
@@ -399,7 +400,8 @@ export function Topbar({
       <TeamPresenceModal
         isOpen={isTeamModalOpen}
         onClose={() => setIsTeamModalOpen(false)}
-        currentUserId={profile.email}
+        currentUserId={profile.id}
+        currentUserEmail={profile.email}
       />
     </header>
   );
