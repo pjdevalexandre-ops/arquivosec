@@ -34,6 +34,11 @@ DROP POLICY IF EXISTS "profiles_admin_update" ON public.profiles;
 CREATE POLICY "profiles_admin_update" ON public.profiles
     FOR UPDATE USING (auth.uid() = id OR public.is_admin());
 
+-- Permitir inserção de perfis pelo próprio usuário ou por administrador
+DROP POLICY IF EXISTS "profiles_insert" ON public.profiles;
+CREATE POLICY "profiles_insert" ON public.profiles
+    FOR INSERT WITH CHECK (auth.uid() = id OR public.is_admin());
+
 -- 5. Atualizar políticas RLS de activity_logs:
 -- Administrador pode ver todo o histórico de auditoria de todos os usuários
 DROP POLICY IF EXISTS "activity_logs_select" ON public.activity_logs;
@@ -52,3 +57,31 @@ BEGIN
         FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
     END IF;
 END $$;
+
+-- 7. Criar gatilho automático para inserção de novos usuários na tabela profiles
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.profiles (id, email, full_name, role, department, storage_limit_bytes, storage_used_bytes)
+    VALUES (
+        NEW.id,
+        NEW.email,
+        COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+        COALESCE(NEW.raw_user_meta_data->>'role', 'gestor'),
+        COALESCE(NEW.raw_user_meta_data->>'department', 'Gabinete / Gestão Pública'),
+        268435456000,
+        0
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        full_name = EXCLUDED.full_name,
+        role = EXCLUDED.role,
+        department = EXCLUDED.department;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();

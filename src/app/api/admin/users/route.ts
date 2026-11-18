@@ -28,8 +28,18 @@ export async function GET() {
         await supabase.from("profiles").update({ role: "admin" }).eq("id", user.id);
       }
 
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+      const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+      const adminClient =
+        serviceRoleKey && !serviceRoleKey.includes("placeholder")
+          ? createSupabaseClient(supabaseUrl, serviceRoleKey, {
+              auth: { autoRefreshToken: false, persistSession: false },
+            })
+          : supabase;
+
       // Busca todos os usuários cadastrados
-      const { data: users, error } = await supabase
+      const { data: users, error } = await adminClient
         .from("profiles")
         .select("*")
         .order("created_at", { ascending: false });
@@ -163,15 +173,28 @@ export async function POST(req: NextRequest) {
       }
 
       if (createdUserId) {
-        // Garante que a role seja atualizada na tabela profiles
-        await supabase
-          .from("profiles")
-          .update({
+        // Garante a inserção/atualização completa na tabela profiles (upsert)
+        const profileClient =
+          serviceRoleKey && !serviceRoleKey.includes("placeholder")
+            ? createSupabaseClient(supabaseUrl, serviceRoleKey, {
+                auth: { autoRefreshToken: false, persistSession: false },
+              })
+            : supabase;
+
+        await profileClient.from("profiles").upsert(
+          {
+            id: createdUserId,
+            email,
             role,
             full_name: full_name || email.split("@")[0],
-            department: department || "Gabinete Geral",
-          })
-          .eq("id", createdUserId);
+            department: department || "Gabinete / Gestão Pública",
+            storage_limit_bytes: 268435456000,
+            storage_used_bytes: 0,
+            theme_preference: "system",
+            two_factor_enabled: false,
+          },
+          { onConflict: "id" }
+        );
 
         // Registra log de auditoria
         await supabase.from("activity_logs").insert({
