@@ -20,13 +20,13 @@ export async function GET() {
       return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
     }
 
-    // Busca as últimas 40 mensagens recebidas
+    // Busca as mensagens recebidas e enviadas pelo usuário
     const { data: messages, error } = await supabase
       .from("internal_messages")
       .select("*")
-      .eq("receiver_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(40);
+      .or(`receiver_id.eq.${user.id},sender_id.eq.${user.id}`)
+      .order("created_at", { ascending: true })
+      .limit(60);
 
     if (error) {
       // Se a tabela ainda não foi criada no Supabase, retorna vazio graciosamente
@@ -36,7 +36,9 @@ export async function GET() {
       throw error;
     }
 
-    const unreadCount = (messages || []).filter((m) => !m.is_read).length;
+    const unreadCount = (messages || []).filter(
+      (m) => m.receiver_id === user.id && !m.is_read
+    ).length;
 
     return NextResponse.json({
       messages: messages || [],
