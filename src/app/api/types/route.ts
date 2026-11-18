@@ -1,36 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClientServer } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
-import { mockDocumentTypes } from "@/lib/mock-data";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    if (isSupabaseConfigured()) {
-      const supabase = await createClientServer();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-      }
-
-      const { data: types, error } = await supabase
-        .from("document_types")
-        .select("*")
-        .or(`user_id.eq.${user.id},is_default.eq.true`)
-        .order("name", { ascending: true });
-
-      if (error) {
-        throw error;
-      }
-
-      return NextResponse.json({ types: types || [] });
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Serviço de banco de dados não configurado." },
+        { status: 503 }
+      );
     }
 
-    return NextResponse.json({ types: mockDocumentTypes });
+    const supabase = await createClientServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
+    const { data: types, error } = await supabase
+      .from("document_types")
+      .select("*")
+      .or(`user_id.eq.${user.id},is_default.eq.true`)
+      .order("name", { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json({ types: types || [] });
   } catch (error: any) {
     console.error("Erro ao listar tipos:", error);
     return NextResponse.json(
@@ -48,47 +50,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Nome é obrigatório." }, { status: 400 });
     }
 
-    if (isSupabaseConfigured()) {
-      const supabase = await createClientServer();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-      }
-
-      const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
-
-      const { data: docType, error } = await supabase
-        .from("document_types")
-        .insert({
-          user_id: user.id,
-          name: name.trim(),
-          slug,
-          description: description || null,
-          color,
-          is_default: false,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      return NextResponse.json({ success: true, type: docType });
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Serviço de banco de dados não configurado." },
+        { status: 503 }
+      );
     }
 
-    const mockType = {
-      id: `t-${Date.now()}`,
-      name: name.trim(),
-      slug: name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-      color,
-      is_default: false,
-    };
+    const supabase = await createClientServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    return NextResponse.json({ success: true, type: mockType });
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
+    const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+    const { data: docType, error } = await supabase
+      .from("document_types")
+      .insert({
+        user_id: user.id,
+        name: name.trim(),
+        slug,
+        description: description || null,
+        color,
+        is_default: false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json({ success: true, type: docType });
   } catch (error: any) {
     console.error("Erro ao criar tipo:", error);
     return NextResponse.json(
@@ -107,27 +104,32 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID é obrigatório." }, { status: 400 });
     }
 
-    if (isSupabaseConfigured()) {
-      const supabase = await createClientServer();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Serviço de banco de dados não configurado." },
+        { status: 503 }
+      );
+    }
 
-      if (!user) {
-        return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-      }
+    const supabase = await createClientServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      const { error } = await supabase
-        .from("document_types")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user.id);
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
 
-      if (error) {
-        throw error;
-      }
+    // Apenas tipos criados pelo usuário (não os padrões do sistema) podem ser excluídos
+    const { error } = await supabase
+      .from("document_types")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .eq("is_default", false);
 
-      return NextResponse.json({ success: true });
+    if (error) {
+      throw error;
     }
 
     return NextResponse.json({ success: true });

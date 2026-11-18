@@ -1,20 +1,21 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Star } from "lucide-react";
+import { Star, Loader2 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import { ShareModal } from "@/components/sharing/ShareModal";
-import { mockDocuments } from "@/lib/mock-data";
 import { DocumentItem } from "@/types";
 
 export default function FavoritosPage() {
-  const [documents, setDocuments] = useState<DocumentItem[]>(mockDocuments);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [sharingDoc, setSharingDoc] = useState<DocumentItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function loadFavorites() {
       try {
+        setIsLoading(true);
         const res = await fetch("/api/documents?favorite=true");
         if (res.ok) {
           const { documents: dbDocs } = await res.json();
@@ -22,6 +23,8 @@ export default function FavoritosPage() {
         }
       } catch (err) {
         console.warn("Erro ao carregar favoritos:", err);
+      } finally {
+        setIsLoading(false);
       }
     }
     loadFavorites();
@@ -63,14 +66,19 @@ export default function FavoritosPage() {
           </p>
         </div>
 
-        {favorites.length === 0 ? (
-          <div className="p-10 sm:p-12 text-center bg-card border border-border/80 rounded-2xl space-y-3">
+        {isLoading ? (
+          <div className="py-16 text-center space-y-3">
+            <Loader2 className="h-8 w-8 text-[#0F4C5C] animate-spin mx-auto" />
+            <p className="text-sm text-muted-foreground">Carregando documentos favoritos...</p>
+          </div>
+        ) : favorites.length === 0 ? (
+          <div className="p-10 sm:p-12 text-center bg-card border border-border rounded-2xl space-y-3">
             <div className="h-12 w-12 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-500 flex items-center justify-center mx-auto">
               <Star className="h-6 w-6" />
             </div>
             <h3 className="font-bold text-sm sm:text-base text-foreground">Nenhum favorito adicionado</h3>
             <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Clique no ícone de estrela em qualquer documento para fixá-lo aqui para acesso instantâneo com um toque.
+              Clique no ícone de estrela em qualquer documento do acervo para fixá-lo aqui para acesso instantâneo.
             </p>
           </div>
         ) : (

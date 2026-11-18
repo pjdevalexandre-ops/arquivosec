@@ -1,30 +1,30 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DocumentFilterBar } from "@/components/documents/DocumentFilterBar";
 import { DocumentCard } from "@/components/documents/DocumentCard";
 import { DocumentTableRow } from "@/components/documents/DocumentTableRow";
 import { BatchActionBar } from "@/components/documents/BatchActionBar";
 import { ShareModal } from "@/components/sharing/ShareModal";
-import { 
-  mockDocuments as initialDocs, 
-  mockFolders, 
-  mockDocumentTypes, 
-  mockTags 
-} from "@/lib/mock-data";
-import { DocumentItem } from "@/types";
-import { FileQuestion, Upload } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { DocumentItem, Folder, DocumentType, Tag } from "@/types";
+import { FileQuestion, FolderInput, Loader2, Sparkles } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function DocumentosContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const queryParam = searchParams.get("busca") || "";
 
-  const [documents, setDocuments] = useState<DocumentItem[]>(initialDocs);
-  const [isLoading, setIsLoading] = useState(false);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [selectedFolderId, setSelectedFolderId] = useState<string>("");
   const [selectedTypeId, setSelectedTypeId] = useState<string>("");
@@ -33,86 +33,130 @@ function DocumentosContent() {
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
   const [sharingDoc, setSharingDoc] = useState<DocumentItem | null>(null);
 
-  // Busca documentos da API
-  const loadDocuments = async () => {
+  // Modal para mover documento(s) em lote ou individualmente
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [targetMoveFolderId, setTargetMoveFolderId] = useState<string>("");
+  const [isMoving, setIsMoving] = useState(false);
+
+  // Busca documentos e metadados dinâmicos da API
+  const loadData = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch("/api/documents");
-      if (res.ok) {
-        const data = await res.json();
+      const [docsRes, foldersRes, typesRes, tagsRes] = await Promise.all([
+        fetch("/api/documents"),
+        fetch("/api/folders"),
+        fetch("/api/types"),
+        fetch("/api/tags"),
+      ]);
+
+      if (docsRes.ok) {
+        const data = await docsRes.json();
         if (data.documents) {
           setDocuments(data.documents);
         }
       }
+
+      if (foldersRes.ok) {
+        const fData = await foldersRes.json();
+        if (fData.folders) setFolders(fData.folders);
+      }
+
+      if (typesRes.ok) {
+        const tData = await typesRes.json();
+        if (tData.types) setDocumentTypes(tData.types);
+      }
+
+      if (tagsRes.ok) {
+        const tgData = await tagsRes.json();
+        if (tgData.tags) setTags(tgData.tags);
+      }
     } catch (err) {
-      console.warn("Usando estado local para documentos:", err);
+      console.warn("Erro ao carregar acervo documental:", err);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDocuments();
+    loadData();
   }, []);
 
   // Filtragem e busca
   const filteredDocuments = useMemo(() => {
-    return documents.filter((doc) => {
-      if (doc.is_trashed) return false;
+    return documents
+      .filter((doc) => {
+        if (doc.is_trashed) return false;
 
-      // Filtro por termo de busca
-      if (queryParam) {
-        const q = queryParam.toLowerCase();
-        const matchesTitle = doc.title.toLowerCase().includes(q);
-        const matchesNum = doc.document_number?.toLowerCase().includes(q);
-        const matchesNotes = doc.notes?.toLowerCase().includes(q);
-        const matchesOcr = doc.ocr_text?.toLowerCase().includes(q);
-        const matchesSector = doc.origin_sector?.toLowerCase().includes(q);
-        const matchesTags = doc.tags?.some((t) => t.name.toLowerCase().includes(q));
+        // Filtro por termo de busca
+        if (queryParam) {
+          const q = queryParam.toLowerCase();
+          const matchesTitle = doc.title.toLowerCase().includes(q);
+          const matchesNum = doc.document_number?.toLowerCase().includes(q);
+          const matchesNotes = doc.notes?.toLowerCase().includes(q);
+          const matchesOcr = doc.ocr_text?.toLowerCase().includes(q);
+          const matchesSector = doc.origin_sector?.toLowerCase().includes(q);
+          const matchesTags = doc.tags?.some((t) => t.name.toLowerCase().includes(q));
 
-        if (!matchesTitle && !matchesNum && !matchesNotes && !matchesOcr && !matchesSector && !matchesTags) {
+          if (
+            !matchesTitle &&
+            !matchesNum &&
+            !matchesNotes &&
+            !matchesOcr &&
+            !matchesSector &&
+            !matchesTags
+          ) {
+            return false;
+          }
+        }
+
+        // Filtro por pasta
+        if (selectedFolderId && doc.folder_id !== selectedFolderId) {
           return false;
         }
-      }
 
-      // Filtro por pasta
-      if (selectedFolderId && doc.folder_id !== selectedFolderId) {
-        return false;
-      }
+        // Filtro por tipo
+        if (selectedTypeId && doc.type_id !== selectedTypeId) {
+          return false;
+        }
 
-      // Filtro por tipo
-      if (selectedTypeId && doc.type_id !== selectedTypeId) {
-        return false;
-      }
+        // Filtro por tag
+        if (selectedTagId && !doc.tags?.some((t) => t.id === selectedTagId)) {
+          return false;
+        }
 
-      // Filtro por tag
-      if (selectedTagId && !doc.tags?.some((t) => t.id === selectedTagId)) {
-        return false;
-      }
-
-      return true;
-    }).sort((a, b) => {
-      switch (sortBy) {
-        case "date_doc":
-          return new Date(b.document_date || b.created_at).getTime() - new Date(a.document_date || a.created_at).getTime();
-        case "title_asc":
-          return a.title.localeCompare(b.title);
-        case "title_desc":
-          return b.title.localeCompare(a.title);
-        case "size_desc":
-          return b.file_size_bytes - a.file_size_bytes;
-        case "size_asc":
-          return a.file_size_bytes - b.file_size_bytes;
-        case "recent":
-        default:
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-    });
+        return true;
+      })
+      .sort((a, b) => {
+        switch (sortBy) {
+          case "date_doc":
+            return (
+              new Date(b.document_date || b.created_at).getTime() -
+              new Date(a.document_date || a.created_at).getTime()
+            );
+          case "title_asc":
+            return a.title.localeCompare(b.title);
+          case "title_desc":
+            return b.title.localeCompare(a.title);
+          case "size_desc":
+            return b.file_size_bytes - a.file_size_bytes;
+          case "size_asc":
+            return a.file_size_bytes - b.file_size_bytes;
+          case "recent":
+          default:
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+      });
   }, [documents, queryParam, selectedFolderId, selectedTypeId, selectedTagId, sortBy]);
+
+  // Limpa seleção se os filtros mudarem e os selecionados não existirem mais na lista
+  useEffect(() => {
+    const validIds = new Set(filteredDocuments.map((d) => d.id));
+    setSelectedDocIds((prev) => prev.filter((id) => validIds.has(id)));
+  }, [filteredDocuments]);
 
   const handleSelectDoc = (id: string, selected: boolean) => {
     if (selected) {
-      setSelectedDocIds((prev) => [...prev, id]);
+      setSelectedDocIds((prev) => Array.from(new Set([...prev, id])));
     } else {
       setSelectedDocIds((prev) => prev.filter((i) => i !== id));
     }
@@ -145,7 +189,11 @@ function DocumentosContent() {
 
   const handleDeleteDoc = async (id: string) => {
     setDocuments((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, is_trashed: true, trashed_at: new Date().toISOString() } : d))
+      prev.map((d) =>
+        d.id === id
+          ? { ...d, is_trashed: true, trashed_at: new Date().toISOString() }
+          : d
+      )
     );
 
     try {
@@ -159,6 +207,16 @@ function DocumentosContent() {
 
   const handleBatchDelete = async () => {
     const idsToDelete = [...selectedDocIds];
+    if (idsToDelete.length === 0) return;
+
+    if (
+      !confirm(
+        `Deseja mover os ${idsToDelete.length} documento(s) selecionado(s) para a lixeira?`
+      )
+    ) {
+      return;
+    }
+
     setDocuments((prev) =>
       prev.map((d) =>
         idsToDelete.includes(d.id)
@@ -168,19 +226,19 @@ function DocumentosContent() {
     );
     setSelectedDocIds([]);
 
-    for (const id of idsToDelete) {
-      try {
-        await fetch(`/api/documents/${id}/delete`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "trash" }),
-        });
-      } catch (_) {}
-    }
+    try {
+      await fetch("/api/documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: idsToDelete, action: "trash" }),
+      });
+    } catch (_) {}
   };
 
   const handleBatchFavorite = async () => {
     const idsToFav = [...selectedDocIds];
+    if (idsToFav.length === 0) return;
+
     setDocuments((prev) =>
       prev.map((d) =>
         idsToFav.includes(d.id) ? { ...d, is_favorite: true } : d
@@ -188,14 +246,56 @@ function DocumentosContent() {
     );
     setSelectedDocIds([]);
 
-    for (const id of idsToFav) {
-      try {
-        await fetch("/api/documents", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, is_favorite: true }),
-        });
-      } catch (_) {}
+    try {
+      await fetch("/api/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: idsToFav, is_favorite: true }),
+      });
+    } catch (_) {}
+  };
+
+  const handleExecuteBatchMove = async () => {
+    if (selectedDocIds.length === 0) return;
+    setIsMoving(true);
+
+    try {
+      const folderVal = targetMoveFolderId === "__none__" ? null : targetMoveFolderId;
+      const targetFolderObj = folders.find((f) => f.id === folderVal) || null;
+
+      await fetch("/api/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedDocIds,
+          folder_id: folderVal,
+        }),
+      });
+
+      setDocuments((prev) =>
+        prev.map((d) =>
+          selectedDocIds.includes(d.id)
+            ? { ...d, folder_id: folderVal, folder: targetFolderObj }
+            : d
+        )
+      );
+
+      setSelectedDocIds([]);
+      setIsMoveModalOpen(false);
+    } catch (e) {
+      console.error("Erro ao mover em lote:", e);
+    } finally {
+      setIsMoving(false);
+    }
+  };
+
+  const handleClearFilters = () => {
+    setSelectedFolderId("");
+    setSelectedTypeId("");
+    setSelectedTagId("");
+    setSelectedDocIds([]);
+    if (queryParam) {
+      router.push("/documentos");
     }
   };
 
@@ -223,9 +323,9 @@ function DocumentosContent() {
       <DocumentFilterBar
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        folders={mockFolders}
-        documentTypes={mockDocumentTypes}
-        tags={mockTags}
+        folders={folders}
+        documentTypes={documentTypes}
+        tags={tags}
         selectedFolderId={selectedFolderId}
         onSelectFolder={setSelectedFolderId}
         selectedTypeId={selectedTypeId}
@@ -237,88 +337,159 @@ function DocumentosContent() {
         totalCount={filteredDocuments.length}
       />
 
-      {/* Lista ou Grade de Documentos */}
-      {filteredDocuments.length === 0 ? (
-        <div className="p-12 text-center bg-card border border-border/80 rounded-2xl space-y-3">
+      {/* Carregamento com Skeleton */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              className="h-16 rounded-xl border border-border bg-card animate-pulse"
+            />
+          ))}
+        </div>
+      ) : filteredDocuments.length === 0 ? (
+        /* Estados Vazios */
+        <div className="p-10 sm:p-14 text-center bg-card border border-border rounded-2xl space-y-3">
           <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
             <FileQuestion className="h-6 w-6" />
           </div>
           <h3 className="font-semibold text-base text-foreground">
-            {queryParam ? "Nenhum documento encontrado para a busca" : "Nenhum documento cadastrado ainda"}
+            {queryParam || selectedFolderId || selectedTypeId || selectedTagId
+              ? "Nenhum documento encontrado com os filtros aplicados"
+              : "Nenhum documento cadastrado no acervo"}
           </h3>
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            {queryParam
-              ? "Tente verificar a ortografia ou buscar por outros termos como número de ofício ou setor."
-              : "Utilize o botão 'Enviar documentos' no topo da página para digitalizar e arquivar seus primeiros documentos."}
+            {queryParam || selectedFolderId || selectedTypeId || selectedTagId
+              ? "Tente ajustar os termos de pesquisa ou remover as opções de filtros selecionadas."
+              : "Utilize o botão '+ Novo Documento' no topo ou na barra de navegação para iniciar a guarda digital."}
           </p>
+          {(queryParam || selectedFolderId || selectedTypeId || selectedTagId) && (
+            <div className="pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearFilters}
+                className="rounded-xl text-xs"
+              >
+                Limpar todos os filtros
+              </Button>
+            </div>
+          )}
         </div>
-      ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      ) : viewMode === "list" ? (
+        /* Modo Lista / Tabela */
+        <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+          <div className="p-3 bg-muted/40 border-b border-border flex items-center justify-between text-xs font-semibold text-muted-foreground">
+            <div className="flex items-center space-x-3">
+              <input
+                type="checkbox"
+                aria-label="Selecionar todos os documentos visíveis"
+                checked={
+                  filteredDocuments.length > 0 &&
+                  filteredDocuments.every((d) => selectedDocIds.includes(d.id))
+                }
+                onChange={(e) => handleSelectAll(e.target.checked)}
+                className="rounded border-input text-[#0F4C5C] focus:ring-[#0F4C5C] h-4 w-4"
+              />
+              <span>Documento / Título Oficial</span>
+            </div>
+            <span className="hidden sm:inline">Ações</span>
+          </div>
+
+          <div className="divide-y divide-border">
+            {filteredDocuments.map((doc) => (
+              <DocumentTableRow
+                key={doc.id}
+                document={doc}
+                isSelected={selectedDocIds.includes(doc.id)}
+                onSelect={(id, selected) => handleSelectDoc(id, selected)}
+                onToggleFavorite={handleToggleFavorite}
+                onShare={setSharingDoc}
+                onDelete={handleDeleteDoc}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        /* Modo Grade / Cards */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {filteredDocuments.map((doc) => (
             <DocumentCard
               key={doc.id}
               document={doc}
               isSelected={selectedDocIds.includes(doc.id)}
-              onSelect={handleSelectDoc}
+              onSelect={(id, selected) => handleSelectDoc(id, selected)}
               onToggleFavorite={handleToggleFavorite}
               onShare={setSharingDoc}
               onDelete={handleDeleteDoc}
             />
           ))}
         </div>
-      ) : (
-        <div className="bg-card border border-border/80 rounded-xl overflow-hidden shadow-soft">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-muted/50 border-b border-border/80 text-muted-foreground font-semibold">
-                <tr>
-                  <th className="p-3 pl-4 w-10">
-                    <input
-                      type="checkbox"
-                      checked={
-                        filteredDocuments.length > 0 &&
-                        selectedDocIds.length === filteredDocuments.length
-                      }
-                      onChange={(e) => handleSelectAll(e.target.checked)}
-                      className="h-4 w-4 rounded border-border text-[#0F4C5C] focus:ring-[#0F4C5C] cursor-pointer"
-                    />
-                  </th>
-                  <th className="p-3 w-10 text-center">Fav</th>
-                  <th className="p-3">Documento</th>
-                  <th className="p-3 hidden md:table-cell">Pasta</th>
-                  <th className="p-3 hidden sm:table-cell">Data do Doc</th>
-                  <th className="p-3">Tamanho</th>
-                  <th className="p-3 hidden lg:table-cell">Tags</th>
-                  <th className="p-3 text-right pr-4">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredDocuments.map((doc) => (
-                  <DocumentTableRow
-                    key={doc.id}
-                    document={doc}
-                    isSelected={selectedDocIds.includes(doc.id)}
-                    onSelect={handleSelectDoc}
-                    onToggleFavorite={handleToggleFavorite}
-                    onShare={setSharingDoc}
-                    onDelete={handleDeleteDoc}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
       )}
 
-      {/* Barra Flutuante de Ações em Lote */}
+      {/* Barra de Ações em Lote */}
       <BatchActionBar
         selectedIds={selectedDocIds}
         onClearSelection={() => setSelectedDocIds([])}
+        onBatchMove={() => {
+          setTargetMoveFolderId(folders[0]?.id || "__none__");
+          setIsMoveModalOpen(true);
+        }}
         onBatchFavorite={handleBatchFavorite}
         onBatchDelete={handleBatchDelete}
       />
 
-      {/* Modal de Compartilhamento */}
+      {/* Modal para Mover em Lote */}
+      <Dialog open={isMoveModalOpen} onOpenChange={setIsMoveModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2 text-base font-bold">
+              <FolderInput className="h-5 w-5 text-[#0F4C5C]" />
+              <span>Mover {selectedDocIds.length} documento(s) para pasta</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 py-3">
+            <label className="text-xs font-semibold text-foreground block">
+              Selecione a pasta de destino:
+            </label>
+            <select
+              value={targetMoveFolderId}
+              onChange={(e) => setTargetMoveFolderId(e.target.value)}
+              className="w-full min-h-[44px] px-3 rounded-xl border border-input bg-background text-sm text-foreground focus:ring-2 focus:ring-[#0F4C5C]"
+            >
+              <option value="__none__">Sem pasta (Raiz / Geral)</option>
+              {folders.map((f) => (
+                <option key={f.id} value={f.id}>
+                  📁 {f.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <DialogFooter className="flex sm:justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isMoving}
+              onClick={() => setIsMoveModalOpen(false)}
+              className="rounded-xl text-xs"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={isMoving}
+              onClick={handleExecuteBatchMove}
+              className="bg-[#0F4C5C] hover:bg-[#0c3e4b] text-white rounded-xl text-xs font-semibold"
+            >
+              {isMoving ? "Movendo..." : "Confirmar Movimentação"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Compartilhamento Temporário */}
       <ShareModal
         isOpen={Boolean(sharingDoc)}
         onClose={() => setSharingDoc(null)}
@@ -331,7 +502,13 @@ function DocumentosContent() {
 export default function DocumentosPage() {
   return (
     <AppLayout>
-      <Suspense fallback={<div className="p-8"><Skeleton className="h-32 w-full rounded-xl" /></div>}>
+      <Suspense
+        fallback={
+          <div className="p-8 text-center text-xs text-muted-foreground">
+            Carregando acervo documental...
+          </div>
+        }
+      >
         <DocumentosContent />
       </Suspense>
     </AppLayout>

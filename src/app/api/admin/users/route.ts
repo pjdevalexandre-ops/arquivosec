@@ -56,23 +56,10 @@ export async function GET() {
       return NextResponse.json({ users: formatted });
     }
 
-    return NextResponse.json({
-      users: [
-        {
-          id: "admin-1",
-          full_name: "Administrador Geral",
-          email: "admin@orgao.gov.br",
-          department: "Gabinete Oficial",
-          role: "admin",
-          is_online: true,
-          current_page: "Painel do Gestor",
-          last_seen_at: new Date().toISOString(),
-          storage_used_bytes: 1048576,
-          storage_limit_bytes: 268435456000,
-          created_at: new Date().toISOString(),
-        },
-      ],
-    });
+    return NextResponse.json(
+      { error: "Serviço de gerenciamento de usuários não configurado." },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Erro ao listar usuários (admin):", error);
     return NextResponse.json(

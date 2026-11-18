@@ -10,7 +10,8 @@ import {
   FileText, 
   Edit2, 
   Trash2,
-  Loader2
+  Loader2,
+  AlertCircle
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { FolderTree } from "@/components/folders/FolderTree";
@@ -18,16 +19,15 @@ import { DocumentTableRow } from "@/components/documents/DocumentTableRow";
 import { ShareModal } from "@/components/sharing/ShareModal";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { mockFolders, mockDocuments } from "@/lib/mock-data";
 import { Folder, DocumentItem } from "@/types";
 import { formatBytes, formatDate } from "@/lib/utils";
 
 export default function PastasPage() {
-  const [folders, setFolders] = useState<Folder[]>(mockFolders);
-  const [activeFolder, setActiveFolder] = useState<Folder>(mockFolders[0]);
-  const [documents, setDocuments] = useState<DocumentItem[]>(mockDocuments);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [activeFolder, setActiveFolder] = useState<Folder | null>(null);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [sharingDoc, setSharingDoc] = useState<DocumentItem | null>(null);
-  const [isLoadingFolders, setIsLoadingFolders] = useState(false);
+  const [isLoadingFolders, setIsLoadingFolders] = useState(true);
 
   // Modal para criar/renomear pasta
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
@@ -36,6 +36,7 @@ export default function PastasPage() {
   const [parentFolderId, setParentFolderId] = useState<string | null>(null);
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [folderError, setFolderError] = useState<string | null>(null);
 
   // Carrega pastas e documentos reais do banco
   const loadData = async () => {
@@ -48,9 +49,13 @@ export default function PastasPage() {
 
       if (foldersRes.ok) {
         const { folders: dbFolders } = await foldersRes.json();
-        if (dbFolders && dbFolders.length > 0) {
+        if (dbFolders) {
           setFolders(dbFolders);
-          setActiveFolder(dbFolders[0]);
+          if (dbFolders.length > 0) {
+            setActiveFolder(dbFolders[0]);
+          } else {
+            setActiveFolder(null);
+          }
         }
       }
 
@@ -71,13 +76,14 @@ export default function PastasPage() {
     loadData();
   }, []);
 
-  const folderDocuments = documents.filter(
-    (d) => d.folder_id === activeFolder?.id && !d.is_trashed
-  );
+  const folderDocuments = activeFolder
+    ? documents.filter((d) => d.folder_id === activeFolder.id && !d.is_trashed)
+    : [];
 
   const handleOpenCreateModal = (parentId: string | null = null) => {
     setModalMode("create");
     setFolderName("");
+    setFolderError(null);
     setParentFolderId(parentId);
     setIsFolderModalOpen(true);
   };
@@ -86,12 +92,17 @@ export default function PastasPage() {
     setModalMode("rename");
     setEditingFolder(folder);
     setFolderName(folder.name);
+    setFolderError(null);
     setIsFolderModalOpen(true);
   };
 
   const handleSaveFolder = async () => {
-    if (!folderName.trim()) return;
+    if (!folderName.trim()) {
+      setFolderError("Digite um nome para a pasta.");
+      return;
+    }
     setIsSaving(true);
+    setFolderError(null);
 
     try {
       if (modalMode === "create") {
@@ -104,11 +115,15 @@ export default function PastasPage() {
             color: "#0F4C5C",
           }),
         });
-        if (res.ok) {
-          const { folder: created } = await res.json();
-          setFolders((prev) => [...prev, created]);
-          setActiveFolder(created);
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Falha ao criar pasta.");
         }
+
+        setFolders((prev) => [...prev, data.folder]);
+        setActiveFolder(data.folder);
+        setIsFolderModalOpen(false);
       } else if (editingFolder) {
         const res = await fetch("/api/folders", {
           method: "PATCH",
@@ -118,38 +133,85 @@ export default function PastasPage() {
             name: folderName.trim(),
           }),
         });
-        if (res.ok) {
-          setFolders((prev) =>
-            prev.map((f) => (f.id === editingFolder.id ? { ...f, name: folderName.trim() } : f))
-          );
-          if (activeFolder?.id === editingFolder.id) {
-            setActiveFolder((prev) => ({ ...prev, name: folderName.trim() }));
-          }
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Falha ao renomear pasta.");
         }
+
+        setFolders((prev) =>
+          prev.map((f) => (f.id === editingFolder.id ? { ...f, name: folderName.trim() } : f))
+        );
+        if (activeFolder?.id === editingFolder.id) {
+          setActiveFolder((prev) => (prev ? { ...prev, name: folderName.trim() } : null));
+        }
+        setIsFolderModalOpen(false);
       }
-    } catch (err) {
-      console.error("Erro ao salvar pasta:", err);
+    } catch (err: any) {
+      setFolderError(err.message || "Erro ao salvar pasta.");
     } finally {
       setIsSaving(false);
-      setIsFolderModalOpen(false);
     }
   };
 
   const handleDeleteFolder = async (folderId: string) => {
-    if (confirm("Tem certeza que deseja excluir esta pasta? Documentos dentro dela serão mantidos sem pasta.")) {
+    if (
+      confirm(
+        "Tem certeza que deseja excluir esta pasta? Documentos dentro dela serão mantidos sem pasta (Raiz)."
+      )
+    ) {
       try {
         await fetch(`/api/folders?id=${folderId}`, { method: "DELETE" });
         setFolders((prev) => {
           const remaining = prev.filter((f) => f.id !== folderId);
-          if (activeFolder?.id === folderId && remaining.length > 0) {
-            setActiveFolder(remaining[0]);
+          if (activeFolder?.id === folderId) {
+            setActiveFolder(remaining.length > 0 ? remaining[0] : null);
           }
           return remaining;
         });
+        // Atualiza documentos locais
+        setDocuments((prev) =>
+          prev.map((d) => (d.folder_id === folderId ? { ...d, folder_id: null } : d))
+        );
       } catch (err) {
         console.error("Erro ao excluir pasta:", err);
       }
     }
+  };
+
+  const handleDeleteDoc = async (id: string) => {
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? { ...d, is_trashed: true, trashed_at: new Date().toISOString() }
+          : d
+      )
+    );
+
+    try {
+      await fetch(`/api/documents/${id}/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "trash" }),
+      });
+    } catch (_) {}
+  };
+
+  const handleToggleFavorite = async (id: string) => {
+    const doc = documents.find((d) => d.id === id);
+    const newFav = !doc?.is_favorite;
+
+    setDocuments((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, is_favorite: newFav } : d))
+    );
+
+    try {
+      await fetch("/api/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, is_favorite: newFav }),
+      });
+    } catch (_) {}
   };
 
   return (
@@ -168,174 +230,189 @@ export default function PastasPage() {
 
           <button
             onClick={() => handleOpenCreateModal(null)}
-            className="touch-target min-h-[44px] px-4 py-2 bg-[#0F4C5C] hover:bg-[#09333e] text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-2 active:scale-95 shadow-sm self-start sm:self-auto"
+            className="touch-target min-h-[44px] px-4 py-2 bg-[#0F4C5C] hover:bg-[#09333e] text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 active:scale-95 shadow-sm self-start sm:self-auto"
           >
             <FolderPlus className="h-4 w-4" />
-            <span>Nova Pasta Raiz</span>
+            <span>Nova Pasta</span>
           </button>
         </div>
 
-        {/* Grade: Árvore à Esquerda + Conteúdo da Pasta à Direita */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6 items-start">
-          {/* Coluna 1: Árvore de Pastas */}
-          <div className="md:col-span-4 bg-card border border-border/80 rounded-2xl p-4 shadow-soft space-y-3">
-            <div className="flex items-center justify-between border-b border-border/80 pb-2.5">
-              <span className="text-xs font-bold text-foreground">Diretórios Oficiais</span>
-              <span className="text-[10px] text-muted-foreground font-mono">{folders.length} pastas</span>
-            </div>
-
-            <FolderTree
-              folders={folders}
-              activeFolderId={activeFolder.id}
-              onSelectFolder={setActiveFolder}
-              onCreateSubfolder={(parentId) => handleOpenCreateModal(parentId)}
-              onRenameFolder={handleOpenRenameModal}
-              onDeleteFolder={handleDeleteFolder}
-            />
+        {/* Loading ou Conteúdo */}
+        {isLoadingFolders ? (
+          <div className="py-16 text-center space-y-3">
+            <Loader2 className="h-8 w-8 text-[#0F4C5C] animate-spin mx-auto" />
+            <p className="text-sm text-muted-foreground">Carregando estrutura de pastas...</p>
           </div>
-
-          {/* Coluna 2: Documentos da Pasta Selecionada */}
-          <div className="md:col-span-8 space-y-3 sm:space-y-4">
-            {/* Breadcrumb da Navegação */}
-            <div className="p-3 bg-muted/30 border border-border/80 rounded-xl flex items-center justify-between text-xs gap-2">
-              <nav className="flex items-center space-x-1.5 sm:space-x-2 text-muted-foreground truncate">
-                <Link href="/" aria-label="Início" className="hover:text-foreground touch-target p-1">
-                  <Home className="h-4 w-4" />
-                </Link>
-                <ChevronRight className="h-3 w-3 flex-shrink-0" />
-                <span className="hidden sm:inline">Pastas</span>
-                <ChevronRight className="h-3 w-3 flex-shrink-0 hidden sm:inline" />
-                <span className="font-bold text-[#0F4C5C] dark:text-cyan-400 truncate">
-                  {activeFolder.name}
-                </span>
-              </nav>
-
-              <button
-                onClick={() => handleOpenRenameModal(activeFolder)}
-                className="touch-target px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground rounded-lg flex items-center space-x-1 flex-shrink-0"
-              >
-                <Edit2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Renomear</span>
-              </button>
+        ) : folders.length === 0 ? (
+          /* Estado Vazio de Pastas */
+          <div className="p-12 text-center bg-card border border-border rounded-2xl max-w-lg mx-auto space-y-3">
+            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto text-muted-foreground">
+              <FolderIcon className="h-6 w-6" />
             </div>
-
-            {/* Conteúdo da Pasta */}
-            <div className="bg-card border border-border/80 rounded-2xl overflow-hidden shadow-soft">
-              <div className="p-3.5 border-b border-border/80 flex items-center justify-between">
-                <div>
-                  <h3 className="text-xs sm:text-sm font-bold text-foreground">
-                    Documentos em &ldquo;{activeFolder.name}&rdquo;
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    {folderDocuments.length} arquivo{folderDocuments.length !== 1 ? "s" : ""}
-                  </p>
-                </div>
+            <h3 className="font-semibold text-base text-foreground">Nenhuma pasta cadastrada</h3>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+              Crie pastas temáticas para classificar e organizar os documentos da sua repartição (ex: Gabinete, Licitações, Recursos Humanos).
+            </p>
+            <div className="pt-2">
+              <Button
+                onClick={() => handleOpenCreateModal(null)}
+                className="bg-[#0F4C5C] hover:bg-[#09333e] text-white rounded-xl text-xs font-semibold"
+              >
+                <FolderPlus className="h-4 w-4 mr-1.5" />
+                Criar Primeira Pasta
+              </Button>
+            </div>
+          </div>
+        ) : (
+          /* Grade: Árvore à Esquerda + Conteúdo da Pasta à Direita */
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6 items-start">
+            {/* Coluna 1: Árvore de Pastas */}
+            <div className="md:col-span-4 bg-card border border-border rounded-2xl p-4 shadow-sm space-y-3">
+              <div className="flex items-center justify-between border-b border-border pb-2.5">
+                <span className="text-xs font-bold text-foreground">Diretórios Cadastrados</span>
+                <span className="text-[10px] text-muted-foreground font-mono">{folders.length} pasta(s)</span>
               </div>
 
-              {folderDocuments.length === 0 ? (
-                <div className="p-8 sm:p-10 text-center space-y-2">
-                  <FolderIcon className="h-10 w-10 text-muted-foreground/40 mx-auto" />
-                  <p className="text-xs sm:text-sm font-semibold text-foreground">Esta pasta está vazia</p>
-                  <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
-                    Arraste documentos para cá ou clique em &ldquo;Enviar&rdquo; na barra inferior.
-                  </p>
-                </div>
-              ) : (
+              <FolderTree
+                folders={folders}
+                activeFolderId={activeFolder?.id || ""}
+                onSelectFolder={setActiveFolder}
+                onCreateSubfolder={(parentId) => handleOpenCreateModal(parentId)}
+                onRenameFolder={handleOpenRenameModal}
+                onDeleteFolder={handleDeleteFolder}
+              />
+            </div>
+
+            {/* Coluna 2: Documentos da Pasta Selecionada */}
+            <div className="md:col-span-8 space-y-3 sm:space-y-4">
+              {activeFolder && (
                 <>
-                  {/* Tabela Desktop (sm:table) */}
-                  <div className="hidden sm:block overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-muted/40 border-b border-border/80 text-muted-foreground font-semibold">
-                        <tr>
-                          <th className="p-2.5 pl-4 w-10">Sel</th>
-                          <th className="p-2.5 w-8">Fav</th>
-                          <th className="p-2.5">Documento</th>
-                          <th className="p-2.5">Data</th>
-                          <th className="p-2.5">Tamanho</th>
-                          <th className="p-2.5 text-right pr-4">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                  {/* Breadcrumb da Navegação */}
+                  <div className="p-3 bg-muted/30 border border-border rounded-xl flex items-center justify-between text-xs gap-2">
+                    <nav className="flex items-center space-x-1.5 sm:space-x-2 text-muted-foreground truncate">
+                      <Link href="/" aria-label="Início" className="hover:text-foreground touch-target p-1">
+                        <Home className="h-4 w-4" />
+                      </Link>
+                      <ChevronRight className="h-3 w-3 flex-shrink-0" />
+                      <span className="hidden sm:inline">Pastas</span>
+                      <ChevronRight className="h-3 w-3 flex-shrink-0 hidden sm:inline" />
+                      <span className="font-bold text-[#0F4C5C] dark:text-cyan-400 truncate">
+                        {activeFolder.name}
+                      </span>
+                    </nav>
+
+                    <button
+                      onClick={() => handleOpenRenameModal(activeFolder)}
+                      className="touch-target px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground rounded-lg flex items-center space-x-1 flex-shrink-0"
+                    >
+                      <Edit2 className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Renomear</span>
+                    </button>
+                  </div>
+
+                  {/* Conteúdo da Pasta */}
+                  <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+                    <div className="p-3.5 border-b border-border flex items-center justify-between">
+                      <div>
+                        <h3 className="text-xs sm:text-sm font-bold text-foreground">
+                          Documentos em &ldquo;{activeFolder.name}&rdquo;
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground">
+                          {folderDocuments.length} arquivo{folderDocuments.length !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                    </div>
+
+                    {folderDocuments.length === 0 ? (
+                      <div className="p-8 sm:p-10 text-center space-y-2">
+                        <FolderIcon className="h-10 w-10 text-muted-foreground/40 mx-auto" />
+                        <p className="text-xs sm:text-sm font-semibold text-foreground">Esta pasta está vazia</p>
+                        <p className="text-[11px] text-muted-foreground max-w-xs mx-auto">
+                          Arraste documentos para cá ou selecione esta pasta ao fazer upload de novos arquivos.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border">
                         {folderDocuments.map((doc) => (
                           <DocumentTableRow
                             key={doc.id}
                             document={doc}
+                            onToggleFavorite={handleToggleFavorite}
                             onShare={setSharingDoc}
-                            onToggleFavorite={(id) => {
-                              setDocuments((prev) =>
-                                prev.map((d) => (d.id === id ? { ...d, is_favorite: !d.is_favorite } : d))
-                              );
-                            }}
+                            onDelete={handleDeleteDoc}
                           />
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Cards Mobile (sm:hidden) */}
-                  <div className="block sm:hidden divide-y divide-border/60">
-                    {folderDocuments.map((doc) => (
-                      <div key={doc.id} className="p-3.5 space-y-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <Link href={`/documentos/${doc.id}`} className="min-w-0 flex-1">
-                            <p className="font-bold text-xs text-foreground line-clamp-1 truncate hover:text-[#0F4C5C]">
-                              {doc.title}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                              {formatBytes(doc.file_size_bytes)} • {formatDate(doc.document_date || doc.created_at)}
-                            </p>
-                          </Link>
-                        </div>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </>
               )}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Modal de Criação / Edição de Pasta */}
         <Dialog open={isFolderModalOpen} onOpenChange={setIsFolderModalOpen}>
-          <DialogContent className="max-w-md p-5 rounded-2xl">
+          <DialogContent className="max-w-md rounded-2xl">
             <DialogHeader>
-              <DialogTitle className="text-[#0F4C5C] text-base font-bold">
+              <DialogTitle className="text-base font-bold text-foreground">
                 {modalMode === "create" ? "Criar Nova Pasta" : "Renomear Pasta"}
               </DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-3 py-2">
-              <label className="text-xs font-semibold text-foreground block">Nome da Pasta</label>
-              <input
-                value={folderName}
-                onChange={(e) => setFolderName(e.target.value)}
-                placeholder="Ex: Contratos de Obras 2025"
-                className="w-full min-h-[44px] sm:min-h-[36px] h-11 sm:h-9 text-base sm:text-xs rounded-xl border border-input bg-background px-3"
-                autoFocus
-              />
+            <div className="space-y-3 py-3">
+              {folderError && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-xl flex items-center space-x-2 text-rose-700 dark:text-rose-300 text-xs">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <span>{folderError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-semibold text-foreground block mb-1">
+                  Nome da Pasta
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Contratos 2026, Ofícios, Gabinete"
+                  value={folderName}
+                  onChange={(e) => setFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSaveFolder();
+                    }
+                  }}
+                  className="w-full px-3 min-h-[44px] rounded-xl border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0F4C5C]"
+                  autoFocus
+                />
+              </div>
             </div>
 
-            <DialogFooter className="flex-row justify-end space-x-2 pt-2">
-              <button 
-                type="button" 
+            <DialogFooter className="flex sm:justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSaving}
                 onClick={() => setIsFolderModalOpen(false)}
-                className="touch-target px-4 py-2 rounded-xl text-xs font-semibold hover:bg-muted"
+                className="rounded-xl text-xs"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                disabled={isSaving || !folderName.trim()}
                 onClick={handleSaveFolder}
-                disabled={!folderName.trim()}
-                className="touch-target px-5 py-2 bg-[#0F4C5C] text-white rounded-xl text-xs font-bold shadow-sm disabled:opacity-50 active:scale-95"
+                className="bg-[#0F4C5C] hover:bg-[#09333e] text-white rounded-xl text-xs font-semibold"
               >
-                Salvar Pasta
-              </button>
+                {isSaving ? "Salvando..." : "Salvar Pasta"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* Modal de Compartilhamento */}
+        {/* Modal de Compartilhamento Temporário */}
         <ShareModal
           isOpen={Boolean(sharingDoc)}
           onClose={() => setSharingDoc(null)}

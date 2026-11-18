@@ -33,31 +33,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Limite máximo por arquivo individual: 500 MB
+    // Limite individual: 500 MB
     const maxSizeBytes = 500 * 1024 * 1024;
     if (fileSizeBytes && fileSizeBytes > maxSizeBytes) {
       return NextResponse.json(
-        { error: "O arquivo excede o limite individual de 500 MB. Utilize divisão em partes." },
+        { error: "O arquivo excede o limite individual de 500 MB." },
         { status: 400 }
       );
     }
 
-    // Obtém o usuário se autenticado para isolar no storage
-    let userPrefix = "gestor";
-    if (isSupabaseConfigured()) {
-      try {
-        const supabase = await createClientServer();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          userPrefix = user.id;
-        }
-      } catch (authErr) {
-        console.warn("Aviso ao obter usuário na rota presigned:", authErr);
-      }
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Serviço de upload não configurado." },
+        { status: 503 }
+      );
     }
 
+    const supabase = await createClientServer();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Sessão não identificada. Por favor, faça login novamente." },
+        { status: 401 }
+      );
+    }
+
+    const userPrefix = user.id;
+
     // Chave única e inalterável com UUID v4 + Timestamp + Nome Sanitizado
-    // Isso garante que arquivos NUNCA sejam sobrescritos ou perdidos
     const cleanName = sanitizeFileName(fileName);
     const uniqueId = crypto.randomUUID();
     const timestamp = Date.now();

@@ -1,36 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClientServer } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
-import { mockTags } from "@/lib/mock-data";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    if (isSupabaseConfigured()) {
-      const supabase = await createClientServer();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-      }
-
-      const { data: tags, error } = await supabase
-        .from("tags")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("name", { ascending: true });
-
-      if (error) {
-        throw error;
-      }
-
-      return NextResponse.json({ tags: tags || [] });
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Serviço de banco de dados não configurado." },
+        { status: 503 }
+      );
     }
 
-    return NextResponse.json({ tags: mockTags });
+    const supabase = await createClientServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
+    const { data: tags, error } = await supabase
+      .from("tags")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("name", { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json({ tags: tags || [] });
   } catch (error: any) {
     console.error("Erro ao listar tags:", error);
     return NextResponse.json(
@@ -42,47 +44,43 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, color = "#3B82F6" } = await req.json();
+    const { name, color = "#0F4C5C" } = await req.json();
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: "Nome é obrigatório." }, { status: 400 });
     }
 
-    if (isSupabaseConfigured()) {
-      const supabase = await createClientServer();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-      }
-
-      const { data: tag, error } = await supabase
-        .from("tags")
-        .insert({
-          user_id: user.id,
-          name: name.trim(),
-          color,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      return NextResponse.json({ success: true, tag });
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Serviço de banco de dados não configurado." },
+        { status: 503 }
+      );
     }
 
-    const mockTag = {
-      id: `tag-${Date.now()}`,
-      user_id: "gestor",
-      name: name.trim(),
-      color,
-    };
+    const supabase = await createClientServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    return NextResponse.json({ success: true, tag: mockTag });
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
+    const { data: tag, error } = await supabase
+      .from("tags")
+      .insert({
+        user_id: user.id,
+        name: name.trim(),
+        color,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json({ success: true, tag });
   } catch (error: any) {
     console.error("Erro ao criar tag:", error);
     return NextResponse.json(
@@ -101,27 +99,30 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID é obrigatório." }, { status: 400 });
     }
 
-    if (isSupabaseConfigured()) {
-      const supabase = await createClientServer();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Serviço de banco de dados não configurado." },
+        { status: 503 }
+      );
+    }
 
-      if (!user) {
-        return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-      }
+    const supabase = await createClientServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      const { error } = await supabase
-        .from("tags")
-        .delete()
-        .eq("id", id)
-        .eq("user_id", user.id);
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
 
-      if (error) {
-        throw error;
-      }
+    const { error } = await supabase
+      .from("tags")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id);
 
-      return NextResponse.json({ success: true });
+    if (error) {
+      throw error;
     }
 
     return NextResponse.json({ success: true });

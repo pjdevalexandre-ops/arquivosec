@@ -16,16 +16,14 @@ import {
   Loader2
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { mockShareLinks } from "@/lib/mock-data";
 import { ShareLink } from "@/types";
 import { formatDateTime } from "@/lib/utils";
 
 export default function CompartilhadosPage() {
-  const [links, setLinks] = useState<ShareLink[]>(mockShareLinks);
+  const [links, setLinks] = useState<ShareLink[]>([]);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function loadShareLinks() {
@@ -75,37 +73,41 @@ export default function CompartilhadosPage() {
             Links de Compartilhamento Temporário
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Controle de acessos externos concedidos a auditores, cidadãos e outros órgãos.
+            Controle de acessos externos concedidos a auditores, cidadãos e outros órgãos públicos.
           </p>
         </div>
 
-        {links.length === 0 ? (
-          <div className="p-10 text-center bg-card border border-border/80 rounded-2xl space-y-3">
+        {isLoading ? (
+          <div className="py-16 text-center space-y-3">
+            <Loader2 className="h-8 w-8 text-[#0F4C5C] animate-spin mx-auto" />
+            <p className="text-sm text-muted-foreground">Carregando links de compartilhamento...</p>
+          </div>
+        ) : links.length === 0 ? (
+          <div className="p-10 text-center bg-card border border-border rounded-2xl space-y-3">
             <div className="h-12 w-12 rounded-full bg-cyan-50 dark:bg-cyan-950/40 text-[#0F4C5C] flex items-center justify-center mx-auto">
               <Share2 className="h-6 w-6" />
             </div>
             <h3 className="font-bold text-sm sm:text-base text-foreground">Nenhum link ativo gerado</h3>
             <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-              Você pode gerar links temporários com validade (24h, 7d, 30d) e senha em qualquer documento.
+              Você pode gerar links temporários com validade (24h, 7d, 30d) e senha em qualquer documento do acervo.
             </p>
           </div>
         ) : (
-          <div className="bg-card border border-border/80 rounded-2xl overflow-hidden shadow-soft">
-            {/* Modo Tabela Desktop (sm:table) */}
+          <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+            {/* Modo Tabela Desktop */}
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-muted/50 border-b border-border/80 text-muted-foreground font-semibold">
+                <thead className="bg-muted/40 border-b border-border text-muted-foreground font-semibold">
                   <tr>
                     <th className="p-3 pl-4">Documento</th>
                     <th className="p-3">Validade</th>
-                    <th className="p-3">Expira em</th>
                     <th className="p-3">Segurança</th>
                     <th className="p-3">Visualizações</th>
                     <th className="p-3">Status</th>
-                    <th className="p-3 text-right pr-4">Ações</th>
+                    <th className="p-3 pr-4 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/60">
+                <tbody className="divide-y divide-border">
                   {links.map((link) => {
                     const isExpired = new Date(link.expires_at).getTime() < Date.now();
                     const isActive = link.is_active && !isExpired;
@@ -115,94 +117,84 @@ export default function CompartilhadosPage() {
                         <td className="p-3 pl-4">
                           <div className="flex items-center space-x-2.5">
                             <FileText className="h-4 w-4 text-[#0F4C5C] flex-shrink-0" />
-                            <div className="min-w-0">
-                              <span className="font-semibold text-foreground truncate block max-w-xs">
+                            <div>
+                              <span className="font-semibold text-foreground block">
                                 {link.document?.title || "Documento Oficial"}
                               </span>
-                              <span className="font-mono text-[10px] text-muted-foreground">
-                                token: {link.token}
+                              <span className="text-[10px] text-muted-foreground">
+                                Token: <span className="font-mono">{link.token}</span>
                               </span>
                             </div>
                           </div>
                         </td>
 
-                        <td className="p-3 font-medium">
-                          {link.duration_label}
-                        </td>
-
-                        <td className="p-3 text-muted-foreground whitespace-nowrap">
-                          {formatDateTime(link.expires_at)}
+                        <td className="p-3">
+                          <span className="flex items-center space-x-1 text-muted-foreground">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>{formatDateTime(link.expires_at)}</span>
+                          </span>
                         </td>
 
                         <td className="p-3">
                           {link.has_password ? (
-                            <Badge variant="outline" className="flex items-center space-x-1 text-[10px] w-fit">
-                              <Lock className="h-2.5 w-2.5 text-amber-500" />
-                              <span>Com senha</span>
-                            </Badge>
+                            <span className="inline-flex items-center space-x-1 text-amber-600 dark:text-amber-400 font-medium text-[11px]">
+                              <Lock className="h-3 w-3" />
+                              <span>Protegido por senha</span>
+                            </span>
                           ) : (
-                            <span className="text-[11px] text-muted-foreground">Público</span>
+                            <span className="text-muted-foreground text-[11px]">Acesso direto</span>
                           )}
                         </td>
 
                         <td className="p-3 font-mono">
-                          {link.view_count} visualizaç{link.view_count === 1 ? "ão" : "ões"}
+                          <span className="flex items-center space-x-1">
+                            <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>{link.view_count || 0}</span>
+                          </span>
                         </td>
 
                         <td className="p-3">
                           {isActive ? (
-                            <span className="inline-flex items-center space-x-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-400 px-2 py-0.5 rounded-full">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                              <span>Ativo</span>
-                            </span>
+                            <Badge variant="emerald" className="text-[10px]">Ativo</Badge>
+                          ) : isExpired ? (
+                            <Badge variant="amber" className="text-[10px]">Expirado</Badge>
                           ) : (
-                            <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                              Revogado
-                            </span>
+                            <Badge variant="destructive" className="text-[10px]">Revogado</Badge>
                           )}
                         </td>
 
-                        <td className="p-3 text-right pr-4 whitespace-nowrap">
+                        <td className="p-3 pr-4 text-right">
                           <div className="flex items-center justify-end space-x-1.5">
                             {isActive && (
                               <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
+                                <button
                                   onClick={() => handleCopyLink(link.token)}
-                                  className="h-7 text-xs flex items-center space-x-1"
+                                  className="touch-target p-1.5 rounded-lg border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground"
+                                  title="Copiar link"
                                 >
                                   {copiedToken === link.token ? (
-                                    <>
-                                      <Check className="h-3 w-3 text-emerald-600" />
-                                      <span>Copiado</span>
-                                    </>
+                                    <Check className="h-3.5 w-3.5 text-emerald-600" />
                                   ) : (
-                                    <>
-                                      <Copy className="h-3 w-3" />
-                                      <span>Copiar</span>
-                                    </>
+                                    <Copy className="h-3.5 w-3.5" />
                                   )}
-                                </Button>
+                                </button>
 
                                 <Link
                                   href={`/compartilhar/${link.token}`}
                                   target="_blank"
-                                  className="p-1 text-muted-foreground hover:text-foreground"
+                                  className="touch-target p-1.5 rounded-lg border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground"
                                   title="Abrir página pública"
                                 >
-                                  <ExternalLink className="h-4 w-4" />
+                                  <ExternalLink className="h-3.5 w-3.5" />
                                 </Link>
 
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
+                                <button
                                   onClick={() => handleRevokeLink(link.id)}
-                                  className="h-7 w-7 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                                  title="Revogar acesso"
+                                  className="touch-target p-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg"
+                                  title="Revogar link"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
+                                </button>
                               </>
                             )}
                           </div>
@@ -214,54 +206,52 @@ export default function CompartilhadosPage() {
               </table>
             </div>
 
-            {/* Modo Cards Mobile (sm:hidden) */}
-            <div className="block sm:hidden divide-y divide-border/60">
+            {/* Modo Cards Mobile */}
+            <div className="sm:hidden divide-y divide-border">
               {links.map((link) => {
                 const isExpired = new Date(link.expires_at).getTime() < Date.now();
                 const isActive = link.is_active && !isExpired;
 
                 return (
-                  <div key={link.id} className="p-3.5 space-y-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-bold text-xs text-foreground line-clamp-1 truncate">
-                          {link.document?.title || "Documento Oficial"}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                          Expira: {formatDateTime(link.expires_at)}
-                        </p>
+                  <div key={link.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start space-x-2">
+                        <FileText className="h-4 w-4 text-[#0F4C5C] flex-shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="font-semibold text-xs text-foreground">
+                            {link.document?.title || "Documento Oficial"}
+                          </h4>
+                          <span className="text-[10px] text-muted-foreground font-mono block">
+                            Token: {link.token}
+                          </span>
+                        </div>
                       </div>
-
                       {isActive ? (
-                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">
-                          Ativo
-                        </span>
+                        <Badge variant="emerald" className="text-[9px]">Ativo</Badge>
                       ) : (
-                        <span className="text-[9px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full flex-shrink-0">
-                          Revogado
-                        </span>
+                        <Badge variant="destructive" className="text-[9px]">Inativo</Badge>
                       )}
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/40">
-                      <span>Validade: {link.duration_label}</span>
-                      <span>{link.view_count} visualizações</span>
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span>Validade: {formatDateTime(link.expires_at)}</span>
+                      <span>Visualizações: {link.view_count || 0}</span>
                     </div>
 
                     {isActive && (
-                      <div className="flex items-center space-x-2 pt-1">
+                      <div className="flex items-center justify-end space-x-2 pt-2 border-t border-border">
                         <button
                           onClick={() => handleCopyLink(link.token)}
-                          className="flex-1 touch-target min-h-[44px] rounded-xl border border-border bg-background text-xs font-bold flex items-center justify-center space-x-1 active:bg-muted"
+                          className="touch-target px-3 py-1.5 rounded-lg border border-border bg-background text-xs font-semibold flex items-center space-x-1"
                         >
                           {copiedToken === link.token ? (
                             <>
-                              <Check className="h-4 w-4 text-emerald-600" />
+                              <Check className="h-3.5 w-3.5 text-emerald-600" />
                               <span>Copiado!</span>
                             </>
                           ) : (
                             <>
-                              <Copy className="h-4 w-4" />
+                              <Copy className="h-3.5 w-3.5" />
                               <span>Copiar Link</span>
                             </>
                           )}
@@ -269,10 +259,9 @@ export default function CompartilhadosPage() {
 
                         <button
                           onClick={() => handleRevokeLink(link.id)}
-                          aria-label="Revogar link"
-                          className="touch-target p-2 text-rose-600 rounded-xl hover:bg-rose-50 border border-rose-200"
+                          className="touch-target px-3 py-1.5 text-xs text-rose-600 font-semibold"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          Revogar
                         </button>
                       </div>
                     )}

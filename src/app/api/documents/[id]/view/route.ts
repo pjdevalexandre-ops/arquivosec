@@ -56,10 +56,10 @@ export async function GET(
       return NextResponse.json({ url: signedUrl, document: formattedDoc });
     }
 
-    // Fallback de demonstração
-    return NextResponse.json({
-      url: `/mock-file/${documentId}.pdf`,
-    });
+    return NextResponse.json(
+      { error: "Serviço de armazenamento não configurado." },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Erro ao obter URL de visualização:", error);
     return NextResponse.json(

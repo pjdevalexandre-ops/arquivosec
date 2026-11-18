@@ -15,14 +15,15 @@ import {
   Calendar, 
   Clock, 
   Building2,
-  Loader2
+  Loader2,
+  FileQuestion,
+  Tag as TagIcon
 } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DocumentViewer } from "@/components/documents/DocumentViewer";
 import { ShareModal } from "@/components/sharing/ShareModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { mockDocuments } from "@/lib/mock-data";
 import { formatBytes, formatDate, formatDateTime, getFileTypeBadge } from "@/lib/utils";
 import type { DocumentItem } from "@/types";
 
@@ -31,52 +32,37 @@ export default function DocumentDetailPage() {
   const router = useRouter();
   const docId = params.id as string;
 
-  const fallbackDoc: DocumentItem = {
-    id: docId,
-    user_id: "gestor",
-    title: "Carregando documento...",
-    document_number: "",
-    document_date: new Date().toISOString().split("T")[0],
-    origin_sector: "Gabinete Geral",
-    folder_id: null,
-    type_id: null,
-    file_key: "docs/sample.pdf",
-    file_name: "documento.pdf",
-    mime_type: "application/pdf",
-    file_extension: "pdf",
-    file_size_bytes: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    is_favorite: false,
-    is_trashed: false,
-    ocr_status: "processing",
-    notes: "",
-  };
-
-  const initialDoc = mockDocuments.find((d) => d.id === docId) || fallbackDoc;
-  const [doc, setDoc] = useState<DocumentItem>(initialDoc);
+  const [doc, setDoc] = useState<DocumentItem | null>(null);
   const [fileUrl, setFileUrl] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFavorite, setIsFavorite] = useState(initialDoc.is_favorite);
+  const [isNotFound, setIsNotFound] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [isSavingNotes, setIsSavingNotes] = useState(false);
-  const [notes, setNotes] = useState(initialDoc.notes || "");
+  const [notes, setNotes] = useState("");
   const [activeTab, setActiveTab] = useState<"info" | "ocr" | "history">("info");
 
   // Edição de Metadados Principais
   const [isEditingMeta, setIsEditingMeta] = useState(false);
   const [isSavingMeta, setIsSavingMeta] = useState(false);
-  const [editTitle, setEditTitle] = useState(initialDoc.title);
-  const [editDocNumber, setEditDocNumber] = useState(initialDoc.document_number || "");
-  const [editOriginSector, setEditOriginSector] = useState(initialDoc.origin_sector || "");
+  const [editTitle, setEditTitle] = useState("");
+  const [editDocNumber, setEditDocNumber] = useState("");
+  const [editOriginSector, setEditOriginSector] = useState("");
 
   // Carrega documento real e URL assinada do Cloudflare R2
   useEffect(() => {
     async function fetchDoc() {
       try {
         setIsLoading(true);
+        setIsNotFound(false);
         const res = await fetch(`/api/documents/${docId}/view`);
+        
+        if (res.status === 404) {
+          setIsNotFound(true);
+          return;
+        }
+
         if (res.ok) {
           const data = await res.json();
           if (data.document) {
@@ -90,9 +76,12 @@ export default function DocumentDetailPage() {
           if (data.url) {
             setFileUrl(data.url);
           }
+        } else {
+          setIsNotFound(true);
         }
       } catch (err) {
         console.error("Erro ao carregar documento do R2:", err);
+        setIsNotFound(true);
       } finally {
         setIsLoading(false);
       }
@@ -103,12 +92,12 @@ export default function DocumentDetailPage() {
     }
   }, [docId]);
 
-  const badge = getFileTypeBadge(doc.mime_type, doc.file_extension);
-
   const handleToggleFavorite = async () => {
+    if (!doc) return;
     const next = !isFavorite;
     setIsFavorite(next);
-    setDoc((prev) => ({ ...prev, is_favorite: next }));
+    setDoc((prev) => (prev ? { ...prev, is_favorite: next } : null));
+
     try {
       await fetch("/api/documents", {
         method: "PATCH",
@@ -121,6 +110,7 @@ export default function DocumentDetailPage() {
   };
 
   const handleSaveNotes = async () => {
+    if (!doc) return;
     setIsSavingNotes(true);
     try {
       const res = await fetch("/api/documents", {
@@ -129,7 +119,7 @@ export default function DocumentDetailPage() {
         body: JSON.stringify({ id: doc.id, notes }),
       });
       if (res.ok) {
-        setDoc((prev) => ({ ...prev, notes }));
+        setDoc((prev) => (prev ? { ...prev, notes } : null));
         setIsEditingNotes(false);
       }
     } catch (e) {
@@ -141,6 +131,7 @@ export default function DocumentDetailPage() {
 
   const handleSaveMeta = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!doc) return;
     setIsSavingMeta(true);
     try {
       const res = await fetch("/api/documents", {
@@ -154,12 +145,16 @@ export default function DocumentDetailPage() {
         }),
       });
       if (res.ok) {
-        setDoc((prev) => ({
-          ...prev,
-          title: editTitle,
-          document_number: editDocNumber,
-          origin_sector: editOriginSector,
-        }));
+        setDoc((prev) =>
+          prev
+            ? {
+                ...prev,
+                title: editTitle,
+                document_number: editDocNumber,
+                origin_sector: editOriginSector,
+              }
+            : null
+        );
         setIsEditingMeta(false);
       }
     } catch (e) {
@@ -170,6 +165,7 @@ export default function DocumentDetailPage() {
   };
 
   const handleDownload = () => {
+    if (!doc) return;
     if (fileUrl) {
       const a = document.createElement("a");
       a.href = fileUrl;
@@ -184,7 +180,8 @@ export default function DocumentDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (confirm("Deseja enviar este documento para a lixeira?")) {
+    if (!doc) return;
+    if (confirm("Deseja enviar este documento oficial para a lixeira?")) {
       try {
         await fetch(`/api/documents/${doc.id}/delete`, {
           method: "POST",
@@ -198,17 +195,57 @@ export default function DocumentDetailPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="py-20 text-center space-y-3">
+          <Loader2 className="h-8 w-8 text-[#0F4C5C] animate-spin mx-auto" />
+          <p className="text-sm text-muted-foreground font-medium">
+            Carregando documento oficial e gerando visualização segura...
+          </p>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (isNotFound || !doc) {
+    return (
+      <AppLayout>
+        <div className="p-12 text-center bg-card border border-border rounded-2xl max-w-md mx-auto my-12 space-y-4">
+          <div className="h-12 w-12 rounded-full bg-muted text-muted-foreground flex items-center justify-center mx-auto">
+            <FileQuestion className="h-6 w-6" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground">Documento Não Encontrado</h2>
+          <p className="text-xs text-muted-foreground">
+            O documento solicitado não existe, foi expurgado ou pertence a outro perfil de acesso.
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/documentos"
+              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-[#0F4C5C] text-white text-xs font-semibold"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Voltar para o acervo</span>
+            </Link>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const badge = getFileTypeBadge(doc.mime_type, doc.file_extension);
+
   return (
     <AppLayout>
       <div className="space-y-4 max-w-full">
         {/* Barra Superior de Navegação e Ações Rápidas */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/80">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
           <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
             <Link
               href="/documentos"
               aria-label="Voltar para a lista de documentos"
               className="touch-target p-2 rounded-xl border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-              title="Voltar para a lista"
+              title="Voltar para o acervo"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
@@ -232,7 +269,7 @@ export default function DocumentDetailPage() {
             <button
               onClick={handleToggleFavorite}
               aria-label={isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-              className="touch-target px-3 py-2 rounded-lg border border-border bg-background text-xs font-semibold flex items-center space-x-1.5 active:bg-muted"
+              className="touch-target px-3 py-2 rounded-xl border border-border bg-background text-xs font-semibold flex items-center space-x-1.5 active:bg-muted"
             >
               <Star className={`h-4 w-4 ${isFavorite ? "fill-amber-400 text-amber-500" : ""}`} />
               <span className="hidden sm:inline">{isFavorite ? "Favorito" : "Favoritar"}</span>
@@ -241,7 +278,7 @@ export default function DocumentDetailPage() {
             <button
               onClick={() => setIsShareOpen(true)}
               aria-label="Compartilhar documento"
-              className="touch-target px-3 py-2 rounded-lg border border-border bg-background text-xs font-semibold flex items-center space-x-1.5 active:bg-muted"
+              className="touch-target px-3 py-2 rounded-xl border border-border bg-background text-xs font-semibold flex items-center space-x-1.5 active:bg-muted"
             >
               <Share2 className="h-4 w-4" />
               <span>Compartilhar</span>
@@ -250,7 +287,7 @@ export default function DocumentDetailPage() {
             <button
               onClick={handleDownload}
               aria-label="Baixar documento"
-              className="touch-target px-3.5 py-2 rounded-lg bg-[#0F4C5C] hover:bg-[#09333e] text-white text-xs font-bold flex items-center space-x-1.5 shadow-sm active:scale-95"
+              className="touch-target px-3.5 py-2 rounded-xl bg-[#0F4C5C] hover:bg-[#09333e] text-white text-xs font-semibold flex items-center space-x-1.5 shadow-sm active:scale-95"
             >
               <Download className="h-4 w-4" />
               <span>Baixar</span>
@@ -259,7 +296,7 @@ export default function DocumentDetailPage() {
             <button
               onClick={handleDelete}
               aria-label="Excluir documento"
-              className="touch-target p-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg"
+              className="touch-target p-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl"
               title="Excluir documento"
             >
               <Trash2 className="h-4 w-4" />
@@ -279,7 +316,7 @@ export default function DocumentDetailPage() {
             />
 
             {/* Status OCR em Destaque */}
-            <div className="p-3 bg-muted/30 border border-border/80 rounded-xl flex items-center justify-between text-xs">
+            <div className="p-3 bg-muted/40 border border-border rounded-xl flex items-center justify-between text-xs">
               <div className="flex items-center space-x-2">
                 <Sparkles className="h-4 w-4 text-[#0F4C5C] flex-shrink-0" />
                 <span className="font-semibold text-foreground">Status do Reconhecimento (OCR):</span>
@@ -297,14 +334,14 @@ export default function DocumentDetailPage() {
           </div>
 
           {/* Painel Lateral com Informações e Metadados */}
-          <div className="lg:col-span-4 bg-card border border-border/80 rounded-xl overflow-hidden shadow-soft">
-            {/* Abas com Touch Target */}
+          <div className="lg:col-span-4 bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+            {/* Abas */}
             <div className="flex border-b border-border text-xs font-semibold">
               <button
                 onClick={() => setActiveTab("info")}
                 className={`flex-1 py-3 text-center transition-colors border-b-2 min-h-[44px] ${
                   activeTab === "info"
-                    ? "border-[#0F4C5C] text-[#0F4C5C] bg-muted/20"
+                    ? "border-[#0F4C5C] text-[#0F4C5C] bg-muted/30"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -314,7 +351,7 @@ export default function DocumentDetailPage() {
                 onClick={() => setActiveTab("ocr")}
                 className={`flex-1 py-3 text-center transition-colors border-b-2 min-h-[44px] ${
                   activeTab === "ocr"
-                    ? "border-[#0F4C5C] text-[#0F4C5C] bg-muted/20"
+                    ? "border-[#0F4C5C] text-[#0F4C5C] bg-muted/30"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -324,7 +361,7 @@ export default function DocumentDetailPage() {
                 onClick={() => setActiveTab("history")}
                 className={`flex-1 py-3 text-center transition-colors border-b-2 min-h-[44px] ${
                   activeTab === "history"
-                    ? "border-[#0F4C5C] text-[#0F4C5C] bg-muted/20"
+                    ? "border-[#0F4C5C] text-[#0F4C5C] bg-muted/30"
                     : "border-transparent text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -382,7 +419,7 @@ export default function DocumentDetailPage() {
                         <button
                           type="submit"
                           disabled={isSavingMeta}
-                          className="min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#0F4C5C] text-white shadow-sm flex items-center space-x-1.5 active:scale-95 disabled:opacity-50"
+                          className="min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#0F4C5C] text-white shadow-sm flex items-center space-x-1.5 active:scale-95 disabled:opacity-50"
                         >
                           {isSavingMeta ? (
                             <>
@@ -397,104 +434,92 @@ export default function DocumentDetailPage() {
                     </form>
                   ) : (
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between pb-1 border-b border-border/40">
-                        <span className="text-[11px] font-bold text-foreground">Metadados Oficiais</span>
+                      <div className="flex items-center justify-between pb-1 border-b border-border">
+                        <span className="font-bold text-foreground">Metadados Oficiais</span>
                         <button
-                          type="button"
                           onClick={() => setIsEditingMeta(true)}
-                          className="text-[11px] text-[#0F4C5C] hover:underline flex items-center space-x-1 font-semibold"
+                          className="touch-target text-[11px] text-[#0F4C5C] font-semibold hover:underline flex items-center space-x-1"
                         >
                           <Edit3 className="h-3 w-3" />
                           <span>Editar</span>
                         </button>
                       </div>
 
-                      <div>
-                        <span className="text-[11px] text-muted-foreground block">Tipo de Documento</span>
-                        <span className="font-semibold text-foreground text-sm">
-                          {doc.type?.name || "Ofício / Documento Oficial"}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] text-muted-foreground block">Número de Registro</span>
-                        <span className="font-mono text-foreground font-medium text-xs sm:text-sm">
-                          {doc.document_number || "Não informado"}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-2">
                         <div>
-                          <span className="text-[11px] text-muted-foreground block">Data do Documento</span>
-                          <span className="text-foreground">
-                            {formatDate(doc.document_date)}
-                          </span>
+                          <span className="text-muted-foreground block text-[10px]">Título Completo:</span>
+                          <span className="font-semibold text-foreground text-xs">{doc.title}</span>
+                        </div>
+                        {doc.document_number && (
+                          <div>
+                            <span className="text-muted-foreground block text-[10px]">Número / Referência:</span>
+                            <span className="font-mono text-xs">{doc.document_number}</span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-muted-foreground block text-[10px]">Órgão / Setor:</span>
+                          <span className="text-xs">{doc.origin_sector || "Gabinete Geral"}</span>
                         </div>
                         <div>
-                          <span className="text-[11px] text-muted-foreground block">Tamanho</span>
-                          <span className="font-mono text-foreground">
-                            {formatBytes(doc.file_size_bytes)}
-                          </span>
+                          <span className="text-muted-foreground block text-[10px]">Data do Expediente:</span>
+                          <span className="text-xs">{formatDate(doc.document_date || doc.created_at)}</span>
                         </div>
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] text-muted-foreground block">Origem / Órgão Expedidor</span>
-                        <span className="text-foreground flex items-center space-x-1.5 mt-0.5">
-                          <Building2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                          <span>{doc.origin_sector || "Gabinete Geral"}</span>
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="text-[11px] text-muted-foreground block">Pasta de Arquivamento</span>
-                        <span className="text-foreground flex items-center space-x-1.5 mt-0.5">
-                          <FolderInput className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                          <span>{doc.folder?.name || "Gabinete do Gestor"}</span>
-                        </span>
+                        <div>
+                          <span className="text-muted-foreground block text-[10px]">Pasta:</span>
+                          <span className="text-xs">{doc.folder?.name || "Sem pasta (Geral)"}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-[10px]">Tamanho e Formato:</span>
+                          <span className="text-xs">{formatBytes(doc.file_size_bytes)} ({doc.file_extension.toUpperCase()})</span>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Observações com Edição Touch-Friendly */}
-                  <div className="pt-3 border-t border-border/80">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[11px] text-muted-foreground font-medium">Observações Internas</span>
-                      <button
-                        onClick={() => setIsEditingNotes(!isEditingNotes)}
-                        className="text-[11px] text-[#0F4C5C] hover:underline flex items-center space-x-1 py-1 touch-manipulation"
-                      >
-                        <Edit3 className="h-3 w-3" />
-                        <span>{isEditingNotes ? "Cancelar" : "Editar"}</span>
-                      </button>
+                  {/* Notas e Observações */}
+                  <div className="pt-3 border-t border-border space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-foreground">Despacho / Observações Internas</span>
+                      {!isEditingNotes && (
+                        <button
+                          onClick={() => setIsEditingNotes(true)}
+                          className="text-[11px] text-[#0F4C5C] font-semibold hover:underline"
+                        >
+                          {doc.notes ? "Editar" : "+ Adicionar"}
+                        </button>
+                      )}
                     </div>
 
                     {isEditingNotes ? (
                       <div className="space-y-2">
                         <textarea
+                          rows={3}
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
-                          className="w-full h-24 text-base sm:text-xs p-2.5 rounded-lg border border-input bg-background focus:ring-1 focus:ring-[#0F4C5C]"
-                          placeholder="Adicione anotações sobre tramitação ou auditoria..."
+                          placeholder="Digite anotações ou orientações de arquivamento..."
+                          className="w-full text-base sm:text-xs p-2 rounded-lg border border-input bg-background"
                         />
-                        <button
-                          onClick={handleSaveNotes}
-                          disabled={isSavingNotes}
-                          className="min-h-[40px] px-3.5 rounded-lg text-xs font-semibold bg-[#0F4C5C] text-white active:scale-95 flex items-center space-x-1.5 disabled:opacity-50"
-                        >
-                          {isSavingNotes ? (
-                            <>
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              <span>Salvando...</span>
-                            </>
-                          ) : (
-                            <span>Salvar Nota</span>
-                          )}
-                        </button>
+                        <div className="flex justify-end space-x-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingNotes(false)}
+                            className="px-2.5 py-1 text-xs text-muted-foreground hover:underline"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSavingNotes}
+                            onClick={handleSaveNotes}
+                            className="px-3 py-1 rounded-lg text-xs font-semibold bg-[#0F4C5C] text-white"
+                          >
+                            {isSavingNotes ? "Salvando..." : "Salvar"}
+                          </button>
+                        </div>
                       </div>
                     ) : (
-                      <p className="text-muted-foreground leading-relaxed bg-muted/30 p-2.5 rounded-lg border border-border/60">
-                        {notes || "Nenhuma observação registrada para este documento."}
+                      <p className="text-xs text-muted-foreground italic bg-muted/30 p-2.5 rounded-lg border border-border">
+                        {doc.notes || "Nenhuma observação interna registrada para este documento."}
                       </p>
                     )}
                   </div>
@@ -502,38 +527,43 @@ export default function DocumentDetailPage() {
               )}
 
               {activeTab === "ocr" && (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-foreground">Conteúdo Textual Indexado</span>
-                    <Badge variant="outline" className="text-[10px]">Tesseract OCR (pt)</Badge>
+                    <span className="font-bold text-foreground">Conteúdo Textual Extraído</span>
+                    <span className="text-[10px] text-muted-foreground">Tesseract OCR</span>
                   </div>
-                  <div className="max-h-80 overflow-y-auto p-3 bg-muted/40 rounded-lg border border-border/80 text-[11px] font-mono leading-relaxed whitespace-pre-wrap text-foreground">
-                    {doc.ocr_text || "Nenhum texto pôde ser extraído."}
-                  </div>
+                  {doc.ocr_text ? (
+                    <div className="p-3 bg-muted/40 rounded-xl border border-border text-[11px] font-mono leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto">
+                      {doc.ocr_text}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic p-4 text-center">
+                      Nenhum texto pôde ser indexado automaticamente neste documento.
+                    </p>
+                  )}
                 </div>
               )}
 
               {activeTab === "history" && (
                 <div className="space-y-3">
-                  <span className="text-xs font-semibold text-foreground">Trilha de Eventos</span>
-                  <div className="space-y-2.5 border-l-2 border-border pl-3 ml-1">
-                    <div className="relative pb-2">
-                      <div className="absolute -left-[17px] top-1 h-2 w-2 rounded-full bg-[#0F4C5C]" />
-                      <p className="font-semibold text-foreground">Guarda Segura</p>
-                      <p className="text-[10px] text-muted-foreground">{formatDateTime(doc.created_at)}</p>
+                  <span className="font-bold text-foreground block">Trilha de Custódia Digital</span>
+                  <div className="space-y-2 text-[11px]">
+                    <div className="p-2.5 bg-muted/30 rounded-lg border border-border flex items-start space-x-2">
+                      <Clock className="h-4 w-4 text-[#0F4C5C] flex-shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-semibold text-foreground block">Documento Cadastrado</span>
+                        <span className="text-muted-foreground">{formatDateTime(doc.created_at)}</span>
+                      </div>
                     </div>
-
-                    <div className="relative pb-2">
-                      <div className="absolute -left-[17px] top-1 h-2 w-2 rounded-full bg-emerald-500" />
-                      <p className="font-semibold text-foreground">Indexação OCR</p>
-                      <p className="text-[10px] text-muted-foreground">Indexado no motor PostgreSQL FTS</p>
-                    </div>
-
-                    <div className="relative">
-                      <div className="absolute -left-[17px] top-1 h-2 w-2 rounded-full bg-blue-500" />
-                      <p className="font-semibold text-foreground">Visualização Registrada</p>
-                      <p className="text-[10px] text-muted-foreground">Consulta por gestor autorizado</p>
-                    </div>
+                    {doc.updated_at && doc.updated_at !== doc.created_at && (
+                      <div className="p-2.5 bg-muted/30 rounded-lg border border-border flex items-start space-x-2">
+                        <Clock className="h-4 w-4 text-cyan-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-semibold text-foreground block">Metadados Atualizados</span>
+                          <span className="text-muted-foreground">{formatDateTime(doc.updated_at)}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -541,7 +571,7 @@ export default function DocumentDetailPage() {
           </div>
         </div>
 
-        {/* Modal de Compartilhamento */}
+        {/* Modal de Compartilhamento Temporário */}
         <ShareModal
           isOpen={isShareOpen}
           onClose={() => setIsShareOpen(false)}

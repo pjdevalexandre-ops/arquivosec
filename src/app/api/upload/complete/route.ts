@@ -101,30 +101,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, document });
     }
 
-    // Modo demonstração
-    const mockCreatedDoc = {
-      id: `doc-${Date.now()}`,
-      title,
-      document_number,
-      document_date,
-      origin_sector,
-      folder_id,
-      type_id,
-      notes,
-      file_key,
-      file_name,
-      file_size_bytes,
-      mime_type,
-      file_extension: extension,
-      ocr_text: initialOcrText,
-      ocr_status: "completed",
-      is_favorite: false,
-      is_trashed: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    return NextResponse.json({ success: true, document: mockCreatedDoc });
+    return NextResponse.json(
+      { error: "Serviço de persistência não configurado." },
+      { status: 503 }
+    );
   } catch (error: any) {
     console.error("Erro ao registrar conclusão do upload:", error);
     return NextResponse.json(

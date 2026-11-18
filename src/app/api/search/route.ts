@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClientServer } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
-import { mockDocuments } from "@/lib/mock-data";
 
 export const dynamic = "force-dynamic";
 
@@ -12,43 +11,82 @@ export async function GET(req: NextRequest) {
     const folderId = searchParams.get("folder_id");
     const typeId = searchParams.get("type_id");
 
-    if (isSupabaseConfigured()) {
-      const supabase = await createClientServer();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Serviço de pesquisa não configurado." },
+        { status: 503 }
+      );
+    }
 
-      if (!user) {
-        return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-      }
+    const supabase = await createClientServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      // Executa a função RPC Postgres criada no schema
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
+    // Tenta primeiro a RPC rápida
+    let rpcSuccess = false;
+    let rpcData: any[] = [];
+
+    try {
       const { data, error } = await supabase.rpc("search_documents", {
         search_query: q,
         filter_folder_id: folderId || null,
         filter_type_id: typeId || null,
       });
 
-      if (error) {
-        throw error;
+      if (!error && data) {
+        rpcSuccess = true;
+        rpcData = data;
       }
-
-      return NextResponse.json({ results: data });
+    } catch (_) {
+      rpcSuccess = false;
     }
 
-    // Modo demonstração
-    const results = mockDocuments.filter((doc) => {
-      if (doc.is_trashed) return false;
-      const lower = q.toLowerCase();
-      return (
-        doc.title.toLowerCase().includes(lower) ||
-        doc.document_number?.toLowerCase().includes(lower) ||
-        doc.notes?.toLowerCase().includes(lower) ||
-        doc.ocr_text?.toLowerCase().includes(lower)
-      );
-    });
+    if (rpcSuccess) {
+      return NextResponse.json({ results: rpcData });
+    }
 
-    return NextResponse.json({ results });
+    // Fallback resiliente direto no Postgres com ILIKE
+    let query = supabase
+      .from("documents")
+      .select(`
+        *,
+        folder:folders(*),
+        type:document_types(*),
+        document_tags(tag:tags(*))
+      `)
+      .eq("user_id", user.id)
+      .eq("is_trashed", false);
+
+    if (folderId) {
+      query = query.eq("folder_id", folderId);
+    }
+    if (typeId) {
+      query = query.eq("type_id", typeId);
+    }
+
+    if (q) {
+      query = query.or(
+        `title.ilike.%${q}%,document_number.ilike.%${q}%,notes.ilike.%${q}%,origin_sector.ilike.%${q}%,ocr_text.ilike.%${q}%`
+      );
+    }
+
+    const { data: fallbackDocs, error: fbError } = await query.order("created_at", { ascending: false });
+
+    if (fbError) {
+      throw fbError;
+    }
+
+    const formatted = (fallbackDocs || []).map((doc: any) => ({
+      ...doc,
+      tags: (doc.document_tags || []).map((dt: any) => dt.tag).filter(Boolean),
+    }));
+
+    return NextResponse.json({ results: formatted });
   } catch (error: any) {
     console.error("Erro na busca de documentos:", error);
     return NextResponse.json(

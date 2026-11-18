@@ -5,21 +5,34 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { UploadModal } from "@/components/upload/UploadModal";
-import { mockFolders, mockDocumentTypes, mockTags, mockProfile } from "@/lib/mock-data";
 import { Folder, DocumentType, Tag, UserProfile } from "@/types";
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
+const defaultProfile: UserProfile = {
+  id: "",
+  full_name: "Servidor Público",
+  email: "",
+  department: "Gabinete / Gestão Pública",
+  role: "gestor",
+  storage_limit_bytes: 268435456000,
+  storage_used_bytes: 0,
+  theme_preference: "system",
+  two_factor_enabled: false,
+  created_at: "",
+  updated_at: "",
+};
+
 export function AppLayout({ children }: AppLayoutProps) {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const [profile, setProfile] = useState<UserProfile>(mockProfile);
-  const [folders, setFolders] = useState<Folder[]>(mockFolders);
-  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>(mockDocumentTypes);
-  const [tags, setTags] = useState<Tag[]>(mockTags);
+  const [profile, setProfile] = useState<UserProfile>(defaultProfile);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
 
   // Carrega dados dinâmicos do Supabase para toda a aplicação
   useEffect(() => {
@@ -38,15 +51,15 @@ export function AppLayout({ children }: AppLayoutProps) {
         }
         if (foldersRes.ok) {
           const { folders: dbFolders } = await foldersRes.json();
-          if (dbFolders && dbFolders.length > 0) setFolders(dbFolders);
+          if (dbFolders) setFolders(dbFolders);
         }
         if (typesRes.ok) {
           const { types: dbTypes } = await typesRes.json();
-          if (dbTypes && dbTypes.length > 0) setDocumentTypes(dbTypes);
+          if (dbTypes) setDocumentTypes(dbTypes);
         }
         if (tagsRes.ok) {
           const { tags: dbTags } = await tagsRes.json();
-          if (dbTags && dbTags.length > 0) setTags(dbTags);
+          if (dbTags) setTags(dbTags);
         }
       } catch (err) {
         console.warn("Aviso ao carregar contexto dinâmico:", err);
@@ -78,7 +91,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <Sidebar
         storageUsed={profile.storage_used_bytes}
         storageLimit={profile.storage_limit_bytes}
-        role={profile.role || "admin"}
+        role={profile.role || "gestor"}
         onOpenUpload={() => setIsUploadOpen(true)}
         className="hidden md:flex sticky top-0"
       />
@@ -93,7 +106,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <Sidebar
             storageUsed={profile.storage_used_bytes}
             storageLimit={profile.storage_limit_bytes}
-            role={profile.role || "admin"}
+            role={profile.role || "gestor"}
             onOpenUpload={() => {
               setIsMobileMenuOpen(false);
               setIsUploadOpen(true);
@@ -113,12 +126,12 @@ export function AppLayout({ children }: AppLayoutProps) {
           isMobileMenuOpen={isMobileMenuOpen}
         />
 
-        {/* Padding inferior reservado para o MobileBottomNav (pb-24 no mobile, pb-8 no desktop) */}
+        {/* Padding inferior reservado para o MobileBottomNav */}
         <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-24 md:pb-8">
           {children}
         </main>
 
-        {/* Navegação Inferior Mobile (Otimizada para iPhone e Android) */}
+        {/* Navegação Inferior Mobile */}
         <MobileBottomNav onOpenUpload={() => setIsUploadOpen(true)} />
       </div>
 
@@ -130,7 +143,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         documentTypes={documentTypes}
         tags={tags}
         onUploadComplete={() => {
-          // Dispara recarregamento
           window.location.reload();
         }}
       />

@@ -1,39 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClientServer } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
-import { mockShareLinks } from "@/lib/mock-data";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    if (isSupabaseConfigured()) {
-      const supabase = await createClientServer();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-      }
-
-      const { data: links, error } = await supabase
-        .from("share_links")
-        .select(`
-          *,
-          document:documents(*)
-        `)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      return NextResponse.json({ links: links || [] });
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Serviço de banco de dados não configurado." },
+        { status: 503 }
+      );
     }
 
-    return NextResponse.json({ links: mockShareLinks });
+    const supabase = await createClientServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
+    const { data: links, error } = await supabase
+      .from("share_links")
+      .select(`
+        *,
+        document:documents(*)
+      `)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return NextResponse.json({ links: links || [] });
   } catch (error: any) {
     console.error("Erro ao listar links compartilhados:", error);
     return NextResponse.json(
@@ -52,27 +54,30 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "ID é obrigatório." }, { status: 400 });
     }
 
-    if (isSupabaseConfigured()) {
-      const supabase = await createClientServer();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json(
+        { error: "Serviço de banco de dados não configurado." },
+        { status: 503 }
+      );
+    }
 
-      if (!user) {
-        return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
-      }
+    const supabase = await createClientServer();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-      const { error } = await supabase
-        .from("share_links")
-        .update({ is_active: false, revoked_at: new Date().toISOString() })
-        .eq("id", id)
-        .eq("user_id", user.id);
+    if (!user) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
 
-      if (error) {
-        throw error;
-      }
+    const { error } = await supabase
+      .from("share_links")
+      .update({ is_active: false, revoked_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("user_id", user.id);
 
-      return NextResponse.json({ success: true });
+    if (error) {
+      throw error;
     }
 
     return NextResponse.json({ success: true });
