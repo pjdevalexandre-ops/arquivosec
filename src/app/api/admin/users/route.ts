@@ -51,8 +51,8 @@ export async function GET() {
       const now = Date.now();
       const formatted = (users || []).map((u: any) => {
         const lastSeen = u.last_seen_at ? new Date(u.last_seen_at).getTime() : 0;
-        // Considera online se enviou sinal nos últimos 3 minutos
-        const isOnline = now - lastSeen < 3 * 60 * 1000;
+        // Considera online se enviou sinal ativo nos últimos 90 segundos (o heartbeat pulsa a cada 45s)
+        const isOnline = lastSeen > 0 && now - lastSeen < 90 * 1000;
 
         return {
           ...u,
@@ -192,6 +192,8 @@ export async function POST(req: NextRequest) {
             storage_used_bytes: 0,
             theme_preference: "system",
             two_factor_enabled: false,
+            last_seen_at: null,
+            current_page: null,
           },
           { onConflict: "id" }
         );
