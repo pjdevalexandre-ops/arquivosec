@@ -3,77 +3,42 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, Lock, Mail, ArrowRight, Eye, EyeOff, AlertCircle, User, CheckCircle2, UserPlus } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { ShieldCheck, Lock, Mail, ArrowRight, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage(null);
-    setSuccessMessage(null);
 
     try {
       if (isSupabaseConfigured()) {
         const supabase = createClient();
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
 
-        if (mode === "login") {
-          const { error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-
-          if (error) {
-            throw error;
-          }
-
-          router.push("/");
-        } else {
-          // Cadastro de novo login
-          if (password.length < 6) {
-            throw new Error("A senha deve ter no mínimo 6 caracteres.");
-          }
-
-          const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              data: {
-                full_name: fullName.trim() || email.split("@")[0],
-              },
-            },
-          });
-
-          if (error) {
-            throw error;
-          }
-
-          if (data.session) {
-            // Sessão criada imediatamente (auto-confirm ativo)
-            router.push("/");
-          } else {
-            setSuccessMessage("Conta criada com sucesso! Você já pode entrar.");
-            setMode("login");
-          }
+        if (error) {
+          throw error;
         }
+
+        router.push("/");
       } else {
         await new Promise((r) => setTimeout(r, 600));
         router.push("/");
       }
     } catch (err: any) {
-      setErrorMessage(err.message || "Erro na autenticação. Verifique os dados digitados.");
+      setErrorMessage(err.message || "E-mail ou senha incorretos.");
     } finally {
       setIsLoading(false);
     }
@@ -102,33 +67,6 @@ export default function LoginPage() {
 
         {/* Card de Formulário */}
         <div className="bg-card border border-border/80 rounded-2xl p-5 sm:p-8 shadow-card space-y-5">
-          {/* Seletor de Modo: Entrar ou Criar Conta */}
-          <div className="flex border border-border rounded-xl p-1 bg-muted/40">
-            <button
-              type="button"
-              onClick={() => { setMode("login"); setErrorMessage(null); setSuccessMessage(null); }}
-              className={`flex-1 min-h-[38px] py-1.5 text-xs font-bold rounded-lg transition-all ${
-                mode === "login"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Entrar
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMode("signup"); setErrorMessage(null); setSuccessMessage(null); }}
-              className={`flex-1 min-h-[38px] py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center space-x-1.5 ${
-                mode === "signup"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <UserPlus className="h-3.5 w-3.5" />
-              <span>Criar Conta</span>
-            </button>
-          </div>
-
           {errorMessage && (
             <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg flex items-center space-x-2 text-rose-700 dark:text-rose-300 text-xs">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -136,33 +74,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          {successMessage && (
-            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 rounded-lg flex items-center space-x-2 text-emerald-700 dark:text-emerald-300 text-xs">
-              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-              <span>{successMessage}</span>
-            </div>
-          )}
-
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && (
-              <div className="space-y-1.5">
-                <label className="text-xs sm:text-sm font-semibold text-foreground block">
-                  Nome Completo
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
-                  <input
-                    type="text"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="Seu nome oficial"
-                    className="w-full pl-11 pr-3 min-h-[48px] sm:min-h-[44px] rounded-xl border border-input bg-background text-base sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#0F4C5C]"
-                  />
-                </div>
-              </div>
-            )}
-
             <div className="space-y-1.5">
               <label className="text-xs sm:text-sm font-semibold text-foreground block">
                 E-mail Institucional
@@ -183,16 +95,14 @@ export default function LoginPage() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs sm:text-sm font-semibold text-foreground">
-                  Senha
+                  Senha de Acesso
                 </label>
-                {mode === "login" && (
-                  <Link
-                    href="/recuperar-senha"
-                    className="text-xs text-[#0F4C5C] hover:underline touch-manipulation py-1"
-                  >
-                    Esqueceu a senha?
-                  </Link>
-                )}
+                <Link
+                  href="/recuperar-senha"
+                  className="text-xs text-[#0F4C5C] hover:underline touch-manipulation py-1"
+                >
+                  Esqueceu a senha?
+                </Link>
               </div>
 
               <div className="relative">
@@ -214,9 +124,6 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
-              {mode === "signup" && (
-                <p className="text-[11px] text-muted-foreground">Mínimo de 6 caracteres.</p>
-              )}
             </div>
 
             <Button
@@ -224,19 +131,18 @@ export default function LoginPage() {
               disabled={isLoading}
               className="w-full min-h-[48px] bg-[#0F4C5C] hover:bg-[#09333e] text-white font-bold flex items-center justify-center space-x-2 rounded-xl mt-3 shadow-sm text-sm sm:text-base active:scale-[0.99] touch-manipulation"
             >
-              <span>
-                {isLoading
-                  ? mode === "login" ? "Autenticando..." : "Criando conta..."
-                  : mode === "login" ? "Entrar no ArquivoSec" : "Cadastrar Acesso"}
-              </span>
+              <span>{isLoading ? "Autenticando..." : "Entrar no ArquivoSec"}</span>
               <ArrowRight className="h-5 w-5" />
             </Button>
           </form>
 
-          {/* Dica de Segurança */}
-          <div className="pt-3 border-t border-border/60 text-center">
+          {/* Dica de Segurança e Aviso de Acesso Fechado */}
+          <div className="pt-3 border-t border-border/60 text-center space-y-1">
             <p className="text-[11px] text-muted-foreground">
-              Ambiente protegido por RLS (Row Level Security) e Cloudflare R2
+              Acesso exclusivo para servidores cadastrados.
+            </p>
+            <p className="text-[10px] text-muted-foreground/80">
+              Novas contas devem ser criadas pelo Administrador no painel interno.
             </p>
           </div>
         </div>

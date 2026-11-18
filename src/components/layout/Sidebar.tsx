@@ -13,7 +13,8 @@ import {
   Settings, 
   HardDrive,
   ShieldCheck,
-  Plus
+  Plus,
+  Users
 } from "lucide-react";
 import { cn, formatBytes } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
@@ -22,6 +23,7 @@ import { Button } from "@/components/ui/button";
 interface SidebarProps {
   storageUsed?: number;
   storageLimit?: number;
+  role?: string;
   onOpenUpload?: () => void;
   className?: string;
   onCloseMobile?: () => void;
@@ -30,6 +32,7 @@ interface SidebarProps {
 export function Sidebar({
   storageUsed = 0,
   storageLimit = 268435456000, // 250 GB
+  role = "admin",
   onOpenUpload,
   className,
   onCloseMobile
@@ -43,6 +46,7 @@ export function Sidebar({
     { name: "Favoritos", href: "/favoritos", icon: Star },
     { name: "Compartilhados", href: "/compartilhados", icon: Share2 },
     { name: "Lixeira", href: "/lixeira", icon: Trash2 },
+    ...(role === "admin" ? [{ name: "Equipe & Online", href: "/usuarios", icon: Users, badge: "ADM" }] : []),
     { name: "Configurações", href: "/configuracoes", icon: Settings },
   ];
 
@@ -109,7 +113,12 @@ export function Sidebar({
                 )}
               >
                 <Icon className={cn("h-4 w-4 flex-shrink-0", isActive ? "text-[#0F4C5C] dark:text-cyan-400" : "text-muted-foreground")} />
-                <span>{item.name}</span>
+                <span className="flex-1 truncate">{item.name}</span>
+                {item.badge && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-mono">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}

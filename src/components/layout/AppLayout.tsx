@@ -56,12 +56,29 @@ export function AppLayout({ children }: AppLayoutProps) {
     loadAppContext();
   }, []);
 
+  // Monitoramento de presença em tempo real (heartbeat)
+  useEffect(() => {
+    const sendHeartbeat = () => {
+      const pageTitle = typeof document !== "undefined" ? document.title.split("|")[0].trim() : "Navegando";
+      fetch("/api/presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ page: pageTitle || "Painel" }),
+      }).catch(() => {});
+    };
+
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 45000); // pulso a cada 45s
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="min-h-[100dvh] flex flex-col md:flex-row bg-background text-foreground max-w-full overflow-x-hidden">
       {/* Sidebar Desktop */}
       <Sidebar
         storageUsed={profile.storage_used_bytes}
         storageLimit={profile.storage_limit_bytes}
+        role={profile.role || "admin"}
         onOpenUpload={() => setIsUploadOpen(true)}
         className="hidden md:flex sticky top-0"
       />
@@ -76,6 +93,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           <Sidebar
             storageUsed={profile.storage_used_bytes}
             storageLimit={profile.storage_limit_bytes}
+            role={profile.role || "admin"}
             onOpenUpload={() => {
               setIsMobileMenuOpen(false);
               setIsUploadOpen(true);

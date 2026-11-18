@@ -114,6 +114,7 @@ export interface ActivityLog {
   ip_address?: string | null;
   created_at: string;
   document?: DocumentItem | null;
+  user?: UserProfile | null;
 }
 
 export interface UserProfile {
@@ -122,6 +123,10 @@ export interface UserProfile {
   email: string;
   avatar_url?: string | null;
   department: string;
+  role?: 'admin' | 'gestor' | 'operador';
+  last_seen_at?: string;
+  current_page?: string;
+  is_online?: boolean;
   storage_limit_bytes: number; // e.g. 268435456000 (250 GB)
   storage_used_bytes: number;
   theme_preference: 'light' | 'dark' | 'system';
